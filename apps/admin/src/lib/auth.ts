@@ -21,7 +21,11 @@ const authRoles = {
 
 export const auth = betterAuth({
   appName: "Kalpix",
-  baseURL: process.env.APP_URL,
+  baseURL:
+    process.env.APP_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : undefined),
   secret: process.env.AUTH_SECRET,
   database: prismaAdapter(db, { provider: "postgresql" }),
   telemetry: { enabled: false },
