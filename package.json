@@ -1,0 +1,38 @@
+{
+  "name": "kalpix-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kalpix: AI-powered website agency and business automation platform",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "db:up": "docker compose -f infra/docker/docker-compose.dev.yml --env-file .env up -d",
+    "db:down": "docker compose -f infra/docker/docker-compose.dev.yml --env-file .env down",
+    "db:check": "node scripts/check-db.mjs",
+    "db:backup": "bash infra/backup/pg-backup.sh",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r --if-present test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "dotenv": "^16.5.0",
+    "eslint": "^9.29.0",
+    "pg": "^8.16.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.34.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

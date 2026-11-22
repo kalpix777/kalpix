@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.log
+.DS_Store
+# secrets: never commit real env files
+.env
+.env.*
+!.env.example
+# generated
+reports/*.md
+!reports/.gitkeep
+backups/
