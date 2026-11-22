@@ -1,0 +1,49 @@
+{
+  "name": "@kalpix/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- next dev",
+    "build": "dotenv -e ../../.env -- next build",
+    "start": "dotenv -e ../../.env -- next start",
+    "typecheck": "tsc --noEmit",
+    "test": "dotenv -e ../../.env -- vitest run",
+    "db:generate": "prisma generate",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "e2e": "dotenv -e ../../.env -- tsx e2e/smoke.mjs && dotenv -e ../../.env -- tsx e2e/mfa.mjs",
+    "lint": "eslint ."
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@kalpix/config": "workspace:*",
+    "@kalpix/core": "workspace:*",
+    "@prisma/client": "~6.19.0",
+    "better-auth": "~1.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.500.0",
+    "next": "~15.5.0",
+    "react": "~19.1.0",
+    "react-dom": "~19.1.0",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^3.3.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "dotenv": "^16.5.0",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "~6.19.0",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.0"
+  }
+}

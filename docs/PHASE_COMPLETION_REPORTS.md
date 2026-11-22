@@ -26,3 +26,39 @@
 3. Start Docker Desktop, then `pnpm db:up` and `pnpm db:check`.
 4. Confirm the REA MCP server shows as connected in Antigravity's MCP settings.
 5. Create a private GitHub repo, push, confirm CI passes.
+
+## Phase 2: Core application, database and admin dashboard
+
+**Status: built and tested in the build environment against a real PostgreSQL server. Awaiting owner review and approval. Phase 3 not started.**
+
+### Delivered
+
+- Next.js 15 admin (`apps/admin`), Tailwind 4, shadcn-compatible components, Lucide icons, Sora/Manrope brand type, mobile menu.
+- All 24 navigation items. Working now: Overview, Sales (service packages), AI Provider Settings, Integrations, User Management, Audit Logs, System Settings, Account security. The rest show an honest "Not built yet, Phase N" state.
+- Prisma schema, 2 migrations, idempotent seed (16 providers disabled, settings, 2 DEMO packages, first owner).
+- Better Auth: email/password, TOTP MFA, admin plugin, rate limits, sign-up off.
+- RBAC (4 roles), owner-only safeguards, approval rules, append-only audit log.
+
+### Acceptance criteria
+
+| Criterion                                           | Status       |
+| --------------------------------------------------- | ------------ |
+| Typecheck, lint, format                             | PASS         |
+| Unit tests                                          | PASS (16/16) |
+| Production build                                    | PASS         |
+| Migrations on clean DB, idempotent seed             | PASS         |
+| Sign-in/out, sign-up blocked, bad password rejected | PASS (e2e)   |
+| TOTP MFA enable and enforce                         | PASS (e2e)   |
+| RBAC on pages and actions                           | PASS (e2e)   |
+| Audit logging and immutability                      | PASS (e2e)   |
+| Keys shown as configured/missing only               | PASS         |
+| Prices configurable, none hardcoded                 | PASS         |
+| Runs on owner's machine with Docker Postgres        | PENDING      |
+| CI green on GitHub                                  | PENDING      |
+
+### Known limits
+
+- MFA setup shows the key as text; QR code is a small follow-up.
+- Integration health shows "Not checked" until each adapter ships.
+- Usage/cost tables fill once real providers run (Phase 3+).
+- Users are suspended, not deleted (audit immutability).

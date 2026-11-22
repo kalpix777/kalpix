@@ -8,7 +8,9 @@ Pilot market: Belagavi, Karnataka. Built to expand across India and internationa
 
 ## Status
 
-**Phase 1 (environment and foundation): built, awaiting local verification and owner approval.** Phase 2 has not started.
+- **Phase 1** (environment and foundation): built and tested; local checks on the owner's machine still open.
+- **Phase 2** (core app, database, admin dashboard): built and tested; awaiting owner review and approval.
+- Phase 3 has not started.
 
 ## Quick start (local)
 
@@ -21,12 +23,17 @@ pnpm doctor                   # inspects this machine, writes reports/environmen
 pnpm db:up                    # local PostgreSQL 16 in Docker (localhost only)
 pnpm db:check                 # verifies the database connection
 pnpm verify                   # typecheck + lint + format + tests
+# then add SEED_OWNER_EMAIL / SEED_OWNER_PASSWORD to .env
+pnpm db:deploy                # apply migrations
+pnpm db:seed                  # providers (disabled), settings, DEMO packages, first owner
+pnpm dev                      # admin at http://localhost:3000, sign in, then enable MFA
+pnpm build && pnpm start      # production build; in another terminal: pnpm e2e
 ```
 
 ## Repository layout
 
 ```
-apps/admin        Next.js admin dashboard (Phase 2)
+apps/admin        Next.js admin dashboard: auth, RBAC, MFA, audit, providers, pricing
 apps/worker       background jobs (Phase 3+)
 packages/config   validated environment config (zod), secret-safe status
 packages/core     provider contracts, Result type, enable rules

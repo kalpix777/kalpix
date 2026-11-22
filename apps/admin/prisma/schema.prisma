@@ -1,0 +1,202 @@
+// Kalpix Phase 2 schema. Auth tables follow Better Auth 1.7 (core + twoFactor + admin plugins).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Auth (Better Auth) ----------
+model User {
+  id               String      @id
+  name             String
+  email            String      @unique
+  emailVerified    Boolean     @default(false)
+  image            String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  twoFactorEnabled Boolean?    @default(false)
+  role             String?     @default("viewer")
+  banned           Boolean?    @default(false)
+  banReason        String?
+  banExpires       DateTime?
+  sessions         Session[]
+  accounts         Account[]
+  twoFactors       TwoFactor[]
+  auditLogs        AuditLog[]
+
+  @@map("user")
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  impersonatedBy String?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+// ---------- Platform ----------
+model AuditLog {
+  id         String   @id @default(uuid())
+  createdAt  DateTime @default(now())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorLabel String // email or "system"; survives user deletion
+  action     String // e.g. "auth.sign_in", "settings.update", "provider.toggle"
+  entityType String?
+  entityId   String?
+  ipAddress  String?
+  metadata   Json?
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([action])
+  @@map("audit_log")
+}
+
+enum ProviderCategory {
+  discovery
+  research
+  model
+  email
+  whatsapp
+  payment
+  hosting
+  storage
+}
+
+enum CostTier {
+  free
+  freemium
+  paid
+}
+
+model ProviderConfig {
+  id                    String           @id // matches adapter descriptor id, e.g. "osm-overpass"
+  name                  String
+  category              ProviderCategory
+  costTier              CostTier
+  enabled               Boolean          @default(false)
+  commercialUseVerified Boolean          @default(false)
+  requiredSecrets       String[] // env var NAMES only, never values
+  fallbackProviderId    String?
+  monthlyLimitUnits     Int?
+  monthlyBudgetMinor    Int? // in currency minor units (paise)
+  currency              String           @default("INR")
+  notes                 String?
+  lastHealthStatus      String? // connected | not_configured | error | disabled
+  lastHealthCheckedAt   DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  usageEvents           UsageEvent[]
+
+  @@map("provider_config")
+}
+
+model UsageEvent {
+  id         String         @id @default(uuid())
+  createdAt  DateTime       @default(now())
+  providerId String
+  provider   ProviderConfig @relation(fields: [providerId], references: [id])
+  operation  String
+  units      Int            @default(1)
+  costMinor  Int            @default(0)
+  currency   String         @default("INR")
+  isEstimate Boolean        @default(true)
+  entityType String?
+  entityId   String?
+
+  @@index([providerId, createdAt])
+  @@map("usage_event")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("system_setting")
+}
+
+enum BillingCycle {
+  one_time
+  monthly
+  yearly
+}
+
+model ServicePackage {
+  id           String       @id @default(uuid())
+  code         String       @unique
+  name         String
+  description  String?
+  category     String // development | redesign | hosting | maintenance | seo | content | automation | support
+  billingCycle BillingCycle
+  priceMinor   Int // configurable, never hardcoded in code
+  currency     String       @default("INR")
+  taxRateBps   Int          @default(1800) // 18% GST default, editable
+  active       Boolean      @default(true)
+  isDemo       Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("service_package")
+}

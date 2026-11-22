@@ -19,7 +19,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r --if-present test",
-    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "dev": "pnpm -F @kalpix/admin dev",
+    "build": "pnpm -F @kalpix/admin build",
+    "start": "pnpm -F @kalpix/admin start",
+    "db:generate": "pnpm -F @kalpix/admin db:generate",
+    "db:migrate": "pnpm -F @kalpix/admin db:migrate",
+    "db:deploy": "pnpm -F @kalpix/admin db:deploy",
+    "db:seed": "pnpm -F @kalpix/admin db:seed",
+    "e2e": "pnpm -F @kalpix/admin e2e"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
@@ -32,7 +40,13 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "prisma",
+      "@prisma/client",
+      "@prisma/engines",
+      "sharp",
+      "@tailwindcss/oxide",
+      "unrs-resolver"
     ]
   }
 }

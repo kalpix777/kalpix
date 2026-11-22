@@ -12,3 +12,5 @@ coverage/
 reports/*.md
 !reports/.gitkeep
 backups/
+*.tsbuildinfo
+next-env.d.ts

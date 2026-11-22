@@ -3,3 +3,5 @@ pnpm-lock.yaml
 reports
 backups
 docs/brand
+*.tsbuildinfo
+.next

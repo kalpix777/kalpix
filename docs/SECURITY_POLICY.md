@@ -15,9 +15,17 @@
 
 - Local Postgres bound to 127.0.0.1. Production DB never publicly exposed; TLS required; daily automated backups with tested restore.
 
-## Access (Phase 2+)
+## Access (implemented in Phase 2)
 
-RBAC, MFA mandatory for administrators, session expiry, rate limits, audit log of every privileged and external action, tenant isolation for customer accounts.
+- Roles: owner, admin, operator, viewer. Matrix in `apps/admin/src/lib/rbac.ts`, enforced on every page and server action, not only hidden in the menu.
+- Public sign-up disabled. Passwords 12+ characters, scrypt-hashed by Better Auth.
+- TOTP MFA with backup codes. Owners and admins without MFA see a banner in development and are forced to Account security in production (`REQUIRE_ADMIN_MFA`).
+- Sessions expire after 7 days, rolling daily. Suspension revokes all sessions.
+- Auth rate limiting.
+- Audit log covers sign-ins, user, role, provider, settings and pricing changes; append-only at database level.
+- Owner-only: create owners, confirm provider commercial terms, activate paid providers, switch off approval rules.
+- Headers: X-Frame-Options DENY, nosniff, strict referrer, restrictive permissions policy, no X-Powered-By; admin is noindex.
+- Planned: tenant isolation with customer accounts (Phase 14).
 
 ## AI agent limits
 

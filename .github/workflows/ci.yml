@@ -12,13 +12,27 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U kalpix" --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      DATABASE_URL: postgresql://kalpix:ci-only@localhost:5432/kalpix_ci
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version-file: .nvmrc, cache: pnpm }
+      - name: CI environment file (throwaway values only)
+        run: |
+          cp .env.example .env
+          sed -i 's#^DATABASE_URL=.*#DATABASE_URL=postgresql://kalpix:ci-only@localhost:5432/kalpix_ci#' .env
+          sed -i 's#^AUTH_SECRET=.*#AUTH_SECRET=ci-only-secret-0123456789abcdef0123456789#' .env
+          sed -i 's#^SEED_OWNER_EMAIL=.*#SEED_OWNER_EMAIL=owner@ci.local#' .env
+          sed -i 's#^SEED_OWNER_PASSWORD=.*#SEED_OWNER_PASSWORD=Ci-Owner-Pass-2026!#' .env
       - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
       - run: pnpm verify
       - run: pnpm db:check
+      - run: pnpm db:deploy
+      - run: pnpm db:seed
+      - run: pnpm build
+      - name: End-to-end smoke and MFA tests
+        run: |
+          pnpm start &
+          npx wait-on http://localhost:3000/login --timeout 60000
+          pnpm e2e

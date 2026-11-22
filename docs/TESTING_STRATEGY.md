@@ -8,6 +8,13 @@
 - Environment verification (`pnpm doctor`, `pnpm db:check`).
 - CI runs all of the above against a throwaway Postgres on every push and PR.
 
+## Phase 2 additions
+
+- Unit: RBAC matrix and role assignment, provider registry integrity, secret status never leaking values.
+- E2E smoke (`apps/admin/e2e/smoke.mjs`, 29 checks): anonymous redirect, sign-up disabled, wrong password, owner access to all pages, 404 for unknown modules, viewer denied on 5 admin pages, suspended user blocked, sign-ins audited, audit log rejects UPDATE/DELETE, security headers.
+- E2E MFA (`apps/admin/e2e/mfa.mjs`, 6 checks): enable, verify, second factor required, wrong code rejected, right code signs in.
+- CI applies migrations, seeds, builds, starts the server and runs both suites.
+
 ## Later
 
 - Integration tests against a real test database (Phase 2+).

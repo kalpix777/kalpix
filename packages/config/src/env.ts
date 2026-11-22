@@ -36,21 +36,21 @@ export const envSchema = z
     if (env.APP_ENV === "production") {
       if (!env.AUTH_SECRET || env.AUTH_SECRET.length < 32) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["AUTH_SECRET"],
           message: "AUTH_SECRET must be at least 32 characters in production",
         });
       }
       if (env.DATABASE_URL.includes("change-me")) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["DATABASE_URL"],
           message: "Default development password is not allowed in production",
         });
       }
       if (env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["RAZORPAY_KEY_ID"],
           message: "Razorpay test keys are not allowed in production",
         });
