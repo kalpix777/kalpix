@@ -7,7 +7,10 @@ export interface BusinessFilters {
   phone?: string; // "yes" | "no" | ""
   q?: string;
   run?: string;
+  research?: string; // "never" | "researched" | "conflicts" | ""
 }
+
+export const RESEARCH_FILTERS = ["never", "researched", "conflicts"] as const;
 
 /** Parses untrusted query-string filters into a safe shape (unknown values are dropped). */
 export function parseBusinessFilters(sp: Record<string, string | string[] | undefined>) {
@@ -16,12 +19,14 @@ export function parseBusinessFilters(sp: Record<string, string | string[] | unde
   const website = one(sp.website);
   const phone = one(sp.phone);
   const run = one(sp.run);
+  const research = one(sp.research);
   return {
     category: isKalpixCategory(category) ? category : "",
     website: website === "yes" || website === "no" ? website : "",
     phone: phone === "yes" || phone === "no" ? phone : "",
     q: one(sp.q).slice(0, 100),
     run: /^[0-9a-f-]{36}$/i.test(run) ? run : "",
+    research: (RESEARCH_FILTERS as readonly string[]).includes(research) ? research : "",
   };
 }
 
@@ -32,6 +37,10 @@ export function businessWhere(f: BusinessFilters): Prisma.BusinessWhereInput {
   if (f.website === "no") and.push({ hasWebsite: false });
   if (f.phone === "yes") and.push({ phone: { not: null } });
   if (f.phone === "no") and.push({ phone: null });
+  if (f.research === "never") and.push({ lastResearchedAt: null });
+  if (f.research === "researched") and.push({ lastResearchedAt: { not: null } });
+  if (f.research === "conflicts")
+    and.push({ facts: { some: { verificationStatus: "conflicting" } } });
   if (f.run) and.push({ OR: [{ firstRunId: f.run }, { lastRunId: f.run }] });
   if (f.q) {
     const contains = { contains: f.q, mode: "insensitive" as const };

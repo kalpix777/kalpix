@@ -46,7 +46,7 @@ export async function claimNextRun(
   return rows[0]?.id ?? null;
 }
 
-class RunError extends Error {}
+export class RunError extends Error {}
 
 async function recordUsage(
   db: PrismaClient,
@@ -71,7 +71,7 @@ async function recordUsage(
   });
 }
 
-async function assertProviderUsable(db: PrismaClient, providerId: string, purpose: string) {
+export async function assertProviderUsable(db: PrismaClient, providerId: string, purpose: string) {
   if (providerId.startsWith("mock-")) {
     if (process.env.APP_ENV === "production")
       throw new RunError("The mock provider is not allowed in production");

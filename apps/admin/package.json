@@ -14,8 +14,9 @@
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
-    "e2e": "dotenv -e ../../.env -- tsx e2e/smoke.mjs && dotenv -e ../../.env -- tsx e2e/mfa.mjs && dotenv -e ../../.env -- tsx e2e/discovery.mjs",
+    "e2e": "dotenv -e ../../.env -- tsx e2e/smoke.mjs && dotenv -e ../../.env -- tsx e2e/mfa.mjs && dotenv -e ../../.env -- tsx e2e/discovery.mjs && dotenv -e ../../.env -- tsx e2e/research.mjs",
     "e2e:discovery": "dotenv -e ../../.env -- tsx e2e/discovery.mjs",
+    "e2e:research": "dotenv -e ../../.env -- tsx e2e/research.mjs",
     "lint": "eslint ."
   },
   "prisma": {

@@ -10,8 +10,9 @@ Pilot market: Belagavi, Karnataka. Built to expand across India and internationa
 
 - **Phase 1** (environment and foundation): built and tested; local checks on the owner's machine still open.
 - **Phase 2** (core app, database, admin dashboard): approved.
-- **Phase 3** (business discovery: OSM Overpass/Nominatim, worker queue, Discovery and Businesses pages, CSV export): built and tested with the MOCK provider; live OSM data not yet verified; awaiting owner approval.
-- Phase 4 has not started.
+- **Phase 3** (business discovery: OSM Overpass/Nominatim, worker queue, Discovery and Businesses pages, CSV export): approved.
+- **Phase 4** (business research: robots-aware HTTP + schema.org extractor, facts with provenance, conflict detection, Business Research page and research on business pages): built and tested with the MOCK providers; live website research not yet verified; awaiting owner approval.
+- Phase 5 has not started.
 
 ## Quick start (local)
 
@@ -29,11 +30,11 @@ pnpm db:deploy                # apply migrations
 pnpm db:seed                  # providers (disabled), settings, DEMO packages, first owner
 pnpm dev                      # admin at http://localhost:3000, sign in, then enable MFA
 pnpm build && pnpm start      # production build; in another terminal: pnpm e2e
-pnpm worker                   # discovery worker: polls the queue (WORKER_POLL_INTERVAL_MS)
+pnpm worker                   # discovery + research worker: polls both queues (WORKER_POLL_INTERVAL_MS)
 pnpm worker:once              # drain the queue once and exit (CI, cron)
 ```
 
-For offline testing run the app with `DISCOVERY_PROVIDER=mock pnpm start` (MOCK data, refused in production). Worker integration tests: `pnpm -F @kalpix/worker test:integration` (needs PostgreSQL).
+For offline testing run the app with `DISCOVERY_PROVIDER=mock RESEARCH_PROVIDER=mock pnpm start` (MOCK data, refused in production); `pnpm -F @kalpix/admin e2e:research` runs only the research e2e. Worker integration tests: `pnpm -F @kalpix/worker test:integration` (needs PostgreSQL).
 
 ### Discovery environment variables (Phase 3)
 
@@ -50,14 +51,25 @@ For offline testing run the app with `DISCOVERY_PROVIDER=mock pnpm start` (MOCK 
 
 Overpass and Nominatim must also be enabled and marked commercial-use verified by the owner in AI Provider Settings.
 
+### Research environment variables (Phase 4)
+
+| Variable                      | Default | Purpose                                                                                 |
+| ----------------------------- | ------- | --------------------------------------------------------------------------------------- |
+| `RESEARCH_PROVIDER`           | `http`  | `http` (robots-aware HTTP + schema.org extractor) or `mock` (not in production)         |
+| `RESEARCH_MAX_PAGES`          | `5`     | Pages per website: homepage + likely contact/about pages (1-20)                         |
+| `RESEARCH_HOST_DELAY_MS`      | `2000`  | Minimum delay between requests to one host (min 2000); a larger robots Crawl-delay wins |
+| `RESEARCH_USER_AGENT_CONTACT` | (empty) | Email or URL in the KalpixBot User-Agent; required before real runs and in production   |
+
+The HTTP extractor (`http-extractor`) is seeded disabled: the owner enables it in AI Provider Settings. Run a single worker (rate limits and the robots cache are in-process). Sites that render only with JavaScript yield few facts.
+
 ## Repository layout
 
 ```
 apps/admin        Next.js admin dashboard: auth, RBAC, MFA, audit, providers, pricing
-apps/worker       background worker: discovery queue (pnpm worker / worker:once)
+apps/worker       background worker: discovery and research queues (pnpm worker / worker:once)
 packages/config   validated environment config (zod), secret-safe status
 packages/core     provider contracts, Result type, enable rules
-packages/providers  discovery adapters: OSM Overpass, Nominatim, MOCK, Google Places stub
+packages/providers  discovery adapters (OSM Overpass, Nominatim, MOCK, Google Places stub) and website research (HTTP extractor, MOCK)
 infra/docker      local dev services
 infra/backup      database backup script
 scripts           doctor (environment inspection), check-db

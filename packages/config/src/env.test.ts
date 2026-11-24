@@ -75,4 +75,64 @@ describe("loadEnv", () => {
       }),
     ).toThrow(/mock is not allowed/);
   });
+
+  it("applies Phase 4 research defaults", () => {
+    const env = loadEnv(base);
+    expect(env.RESEARCH_PROVIDER).toBe("http");
+    expect(env.RESEARCH_MAX_PAGES).toBe(5);
+    expect(env.RESEARCH_HOST_DELAY_MS).toBe(2000);
+    expect(env.RESEARCH_USER_AGENT_CONTACT).toBeUndefined();
+    const blank = loadEnv({
+      ...base,
+      RESEARCH_PROVIDER: "",
+      RESEARCH_MAX_PAGES: " ",
+      RESEARCH_HOST_DELAY_MS: "",
+      RESEARCH_USER_AGENT_CONTACT: "",
+    });
+    expect(blank.RESEARCH_PROVIDER).toBe("http");
+    expect(blank.RESEARCH_MAX_PAGES).toBe(5);
+    expect(blank.RESEARCH_USER_AGENT_CONTACT).toBeUndefined();
+  });
+
+  it("parses and validates Phase 4 research settings", () => {
+    const env = loadEnv({
+      ...base,
+      RESEARCH_PROVIDER: " MOCK ",
+      RESEARCH_MAX_PAGES: "3",
+      RESEARCH_HOST_DELAY_MS: "5000",
+      RESEARCH_USER_AGENT_CONTACT: "ops@kalpix.in",
+    });
+    expect(env).toMatchObject({
+      RESEARCH_PROVIDER: "mock",
+      RESEARCH_MAX_PAGES: 3,
+      RESEARCH_HOST_DELAY_MS: 5000,
+      RESEARCH_USER_AGENT_CONTACT: "ops@kalpix.in",
+    });
+    expect(
+      loadEnv({ ...base, RESEARCH_USER_AGENT_CONTACT: "https://kalpix.in/bot" })
+        .RESEARCH_USER_AGENT_CONTACT,
+    ).toBe("https://kalpix.in/bot");
+    expect(() => loadEnv({ ...base, RESEARCH_PROVIDER: "firecrawl" })).toThrow(/RESEARCH_PROVIDER/);
+    expect(() => loadEnv({ ...base, RESEARCH_MAX_PAGES: "0" })).toThrow(/RESEARCH_MAX_PAGES/);
+    expect(() => loadEnv({ ...base, RESEARCH_MAX_PAGES: "50" })).toThrow(/RESEARCH_MAX_PAGES/);
+    expect(() => loadEnv({ ...base, RESEARCH_HOST_DELAY_MS: "500" })).toThrow(/at least 2000/);
+    expect(() => loadEnv({ ...base, RESEARCH_USER_AGENT_CONTACT: "call me" })).toThrow(
+      /RESEARCH_USER_AGENT_CONTACT/,
+    );
+  });
+
+  it("refuses mock research and an anonymous research User-Agent in production", () => {
+    const prod = {
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://u:pw@db/prod",
+      AUTH_SECRET: "x".repeat(40),
+    };
+    expect(() =>
+      loadEnv({ ...prod, RESEARCH_PROVIDER: "mock", RESEARCH_USER_AGENT_CONTACT: "a@b.in" }),
+    ).toThrow(/RESEARCH_PROVIDER=mock is not allowed/);
+    expect(() => loadEnv(prod)).toThrow(/RESEARCH_USER_AGENT_CONTACT is required/);
+    expect(
+      loadEnv({ ...prod, RESEARCH_USER_AGENT_CONTACT: "ops@kalpix.in" }).RESEARCH_PROVIDER,
+    ).toBe("http");
+  });
 });

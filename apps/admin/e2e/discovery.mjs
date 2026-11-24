@@ -52,7 +52,7 @@ async function startRun(cookie, body) {
 function drainWorker() {
   // Same command an operator runs; DISCOVERY_PROVIDER=mock keeps it offline.
   return execFileSync("pnpm", ["-F", "@kalpix/worker", "once"], {
-    env: { ...process.env, DISCOVERY_PROVIDER: "mock" },
+    env: { ...process.env, DISCOVERY_PROVIDER: "mock", RESEARCH_PROVIDER: "mock" },
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -180,7 +180,7 @@ try {
 }
 check(
   "pnpm worker:once processed the run",
-  /processed 1 run/.test(out),
+  /processed 1 (discovery )?run/.test(out),
   out.trim().split("\n").pop(),
 );
 const run1 = (await db.query(`select * from discovery_run where id = $1`, [runId])).rows[0];

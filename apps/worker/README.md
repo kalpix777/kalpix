@@ -1,6 +1,6 @@
 # @kalpix/worker
 
-Background worker for Kalpix. Phase 3: processes the business-discovery queue stored in PostgreSQL (`discovery_run` table). No Redis or external queue.
+Background worker for Kalpix. Processes two queues stored in PostgreSQL with the same claim mechanism: business discovery (`discovery_run`, Phase 3) and website research (`research_run`, Phase 4). No Redis or external queue. Each poll drains discovery, then research.
 
 ## Commands (from the repo root)
 
@@ -21,6 +21,14 @@ Both read `../../.env` via `dotenv-cli`. `SIGINT`/`SIGTERM` finish the current r
 4. **Categories**: one at a time. Results are normalised, de-duplicated (provider id, then fuzzy name + distance) and upserted on `(provider, providerId)`; counts and `completedCategories` are saved after each category, so a crash resumes where it stopped and re-processing creates no duplicates.
 5. **Finish**: `succeeded`, or `failed` with the error and completed progress kept (retry from the Discovery page). Provider requests are recorded as `usage_event` rows.
 
+## How a research run is processed (Phase 4)
+
+1. **Queue**: `enqueueResearchRun()` (`src/research-run.ts`) validates the scope (`businesses` ids, all businesses of a `discovery_run`, or a `filter` on category/city/status/hasWebsite/staleAfterDays/limit; max 500 businesses) and returns the existing run for a repeated `idempotencyKey`.
+2. **Claim and readiness**: as for discovery (`FOR UPDATE SKIP LOCKED`, stale lock after 10 minutes, max 5 attempts). `http-extractor` must be enabled in AI Provider Settings; MOCK only outside production.
+3. **Scope**: resolved once and stored in `targetIds`, so a resumed run researches the same set.
+4. **Per business**: the monthly unit limit is checked, the website is researched (outside the transaction), then one transaction writes listing facts + website facts (upsert on the unique key), re-evaluates conflicts, writes the `business_research` row, a `usage_event` (units = HTTP requests, cost 0) and the run counters. A crash resumes after the last committed business; a provider error on one business is recorded (`status = error`) and the run continues.
+5. **Finish**: `succeeded`, or `failed` with the error (disabled provider, monthly limit) and progress kept.
+
 ## Environment
 
-`DATABASE_URL`, `DISCOVERY_PROVIDER`, `OVERPASS_API_URL`, `NOMINATIM_BASE_URL`, `NOMINATIM_CONTACT_EMAIL`, `NOMINATIM_COUNTRY_CODES`, `WORKER_POLL_INTERVAL_MS`. See the root `README.md` and `.env.example`.
+`DATABASE_URL`, `DISCOVERY_PROVIDER`, `RESEARCH_PROVIDER`, `RESEARCH_MAX_PAGES`, `RESEARCH_HOST_DELAY_MS`, `RESEARCH_USER_AGENT_CONTACT`, `OVERPASS_API_URL`, `NOMINATIM_BASE_URL`, `NOMINATIM_CONTACT_EMAIL`, `NOMINATIM_COUNTRY_CODES`, `WORKER_POLL_INTERVAL_MS`. See the root `README.md` and `.env.example`.

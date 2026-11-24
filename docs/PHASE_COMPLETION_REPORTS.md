@@ -65,7 +65,7 @@
 
 ## Phase 3: Business discovery engine
 
-**Status: built and tested in the build environment against a real PostgreSQL 17 server with the MOCK provider. Live OpenStreetMap data is unverified (see below). Awaiting owner review and approval. Phase 4 not started.**
+**Status: built and tested in the build environment against a real PostgreSQL 17 server with the MOCK provider. Live OpenStreetMap data is unverified (see below). Approved by the owner.**
 
 ### Delivered
 
@@ -106,3 +106,53 @@ The live Overpass query could not be completed from the build sandbox: a plain `
 ### Cost
 
 Rs 0. Overpass and Nominatim are free public services with usage policies; no paid API was called.
+
+## Phase 4: Business research and extraction
+
+**Status: built and tested in the build environment against a real PostgreSQL 17 server, in-process HTTP test sites and the MOCK providers. Live website research is unverified from the build sandbox (see below). Awaiting owner review and approval. Phase 5 not started.**
+
+### Delivered
+
+- `packages/core/src/research.ts`: `WebsiteResearchProvider`, `ResearchFact` with provenance (sourceUrl, collectedAt, sourceType, confidence, verificationStatus, usageRestriction), `WebsiteSignals`, run scopes and `parseResearchFilter`, `detectConflicts`.
+- `packages/providers/src/research/`: polite fetcher (KalpixBot User-Agent with contact, robots.txt per RFC 9309 with cache and Crawl-delay, per-host delay >= 2 s, 15 s timeout, 2 MB cap after decompression, <= 5 redirects re-checked each hop, <= 5 pages per site: homepage + same-site contact/about pages), SSRF guard (http/https and web ports only, no credentials, private/loopback/link-local/CGNAT/multicast/NAT64/6to4 blocked, checked again at DNS-connect time), cheerio extraction (JSON-LD incl. `@graph` and openingHoursSpecification, microdata, meta/og, tel:/mailto:, obfuscated emails, Indian phones to E.164, Facebook/Instagram/X/LinkedIn/YouTube, WhatsApp), quality signals and tech hints, broken-site classification, deterministic MOCK provider.
+- Migration `20261124000000_phase4_research`: `research_run`, `business_research`, `research_fact`, `business.lastResearchedAt`.
+- `apps/worker`: job type "research" (`research-run.ts`): scope resolution frozen on the run, per-business transaction, resumable, monthly limit checked before each business, `usage_event` per business at cost 0, discovery listing values stored as facts too, conflict refresh across all of a business's facts.
+- Admin: **Business Research** page (provider readiness, start a run for a discovery run or a filter, run table with outcome counts, facts, conflicts, retry/cancel); research section on the business detail page (latest result, plain-language observations, every fact with source URL, source type, confidence, status and collection time, conflicting rows highlighted, "Research this business"); Research column and filter (never / researched / has conflicts) on the Businesses list, plus "Research these".
+- HTTP API: `GET/POST /api/research/runs` (see API_DOCUMENTATION.md). RBAC: `research:run` (operator+). Run start, retry and cancel are audited (`research.run_start`, `research.run_retry`, `research.run_cancel`).
+- E2E: `apps/admin/e2e/research.mjs` (`pnpm -F @kalpix/admin e2e:research`, part of `pnpm e2e`); CI sets `RESEARCH_PROVIDER=mock`.
+- Env: `RESEARCH_PROVIDER`, `RESEARCH_MAX_PAGES`, `RESEARCH_HOST_DELAY_MS`, `RESEARCH_USER_AGENT_CONTACT`.
+
+### Acceptance criteria
+
+| Criterion                                                       | Status                                      |
+| --------------------------------------------------------------- | ------------------------------------------- |
+| Typecheck, lint, format                                         | PASS                                        |
+| Unit tests (`pnpm verify`)                                      | PASS (137/137)                              |
+| Worker integration tests (real PostgreSQL)                      | PASS (12/12: 6 discovery + 6 research)      |
+| Production build                                                | PASS                                        |
+| E2E smoke / MFA / discovery / research (against `pnpm start`)   | PASS (29/29, 6/6, 30/30, 33/33)             |
+| Extraction from HTML fixtures (no network)                      | PASS                                        |
+| robots.txt honoured, SSRF blocked (incl. redirect to 10/8)      | PASS (unit + integration)                   |
+| Idempotent run start; re-research creates 0 duplicate facts     | PASS (e2e + integration)                    |
+| Conflicting listing vs website values flagged and shown         | PASS (e2e)                                  |
+| RBAC (anonymous 401, viewer 403, operator 202) and audit        | PASS (e2e)                                  |
+| Resume after crash; monthly limit and disabled provider refused | PASS (integration)                          |
+| Live website research from build environment                    | NOT VERIFIED (see below)                    |
+| Runs on owner's machine; CI green on GitHub                     | PENDING / see CI run for the Phase 4 commit |
+
+### Live data check
+
+Live website research was not verified from the build sandbox (outbound requests are unreliable there, as with Overpass in Phase 3). The extractor is tested against recorded HTML fixtures and in-process HTTP test sites. All data in the screenshots and e2e runs comes from the MOCK providers and is labelled **MOCK** everywhere.
+
+### Known limits
+
+- No JavaScript rendering: sites built entirely client-side (some Wix/React sites) yield few or no facts. Crawl4AI could be a later fallback.
+- The rate limiter and robots cache are in-process: run a single research worker (as with discovery).
+- Image facts (logos, photos) are not extracted or stored in this phase.
+- Free-text phone extraction is conservative (Indian numbers only); `confidence` is extraction reliability, not verification (verification is Phase 5).
+- `http-extractor` is seeded disabled: the owner must enable it in AI Provider Settings and set `RESEARCH_USER_AGENT_CONTACT` (an email or URL; required when `APP_ENV=production`) before real runs.
+- "Research these" from the Businesses list with the "never researched" filter is passed to the run as "not researched in 3650 days" (an approximation: never, or more than 10 years ago).
+
+### Cost
+
+Rs 0. No paid API; website fetches are recorded as `usage_event` with `costMinor = 0`.

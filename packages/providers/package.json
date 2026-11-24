@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@kalpix/core": "workspace:*",
+    "cheerio": "^1.2.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {

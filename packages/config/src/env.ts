@@ -13,6 +13,9 @@ const LEGACY_DISCOVERY: Record<string, string> = {
   "google-places": "google_places",
 };
 
+/** RESEARCH_PROVIDER values (Phase 4). */
+export const RESEARCH_PROVIDERS = ["http", "mock"] as const;
+
 /** Unset or empty means "use the default". */
 const blankToUndefined = (v: unknown) =>
   typeof v === "string" && v.trim().length === 0 ? undefined : v;
@@ -65,6 +68,36 @@ export const envSchema = z
         )
         .default("in"),
     ),
+    // --- Phase 4: website research ---
+    RESEARCH_PROVIDER: z.preprocess(
+      (v) => (typeof blankToUndefined(v) === "string" ? String(v).trim().toLowerCase() : undefined),
+      z.enum(RESEARCH_PROVIDERS).default("http"),
+    ),
+    RESEARCH_MAX_PAGES: z.preprocess(
+      blankToUndefined,
+      z.coerce.number().int().min(1).max(20).default(5),
+    ),
+    RESEARCH_HOST_DELAY_MS: z.preprocess(
+      blankToUndefined,
+      z.coerce
+        .number()
+        .int()
+        .min(2000, "RESEARCH_HOST_DELAY_MS must be at least 2000 (fair use of small sites)")
+        .max(60_000)
+        .default(2000),
+    ),
+    RESEARCH_USER_AGENT_CONTACT: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .trim()
+        .max(200)
+        .refine(
+          (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || /^https?:\/\/\S+$/.test(v),
+          "RESEARCH_USER_AGENT_CONTACT must be an email address or an http(s) URL",
+        )
+        .optional(),
+    ),
     WORKER_POLL_INTERVAL_MS: z.preprocess(
       blankToUndefined,
       z.coerce.number().int().min(1000).max(3_600_000).default(5000),
@@ -91,6 +124,21 @@ export const envSchema = z
           code: "custom",
           path: ["DISCOVERY_PROVIDER"],
           message: "DISCOVERY_PROVIDER=mock is not allowed in production",
+        });
+      }
+      if (env.RESEARCH_PROVIDER === "mock") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["RESEARCH_PROVIDER"],
+          message: "RESEARCH_PROVIDER=mock is not allowed in production",
+        });
+      }
+      if (env.RESEARCH_PROVIDER === "http" && !env.RESEARCH_USER_AGENT_CONTACT) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["RESEARCH_USER_AGENT_CONTACT"],
+          message:
+            "RESEARCH_USER_AGENT_CONTACT is required in production (identifying User-Agent for website research)",
         });
       }
       if (env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")) {

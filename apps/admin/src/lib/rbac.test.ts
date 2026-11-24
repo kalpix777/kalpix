@@ -30,6 +30,12 @@ describe("rbac", () => {
     expect(can("admin", "businesses:export")).toBe(true);
     expect(can("owner", "businesses:export")).toBe(true);
   });
+  it("operators and above start research runs; viewers only read", () => {
+    expect(can("viewer", "research:run")).toBe(false);
+    expect(can("operator", "research:run")).toBe(true);
+    expect(can("admin", "research:run")).toBe(true);
+    expect(can("owner", "research:run")).toBe(true);
+  });
   it("identifies admin roles for MFA enforcement", () => {
     expect(isAdminRole("owner")).toBe(true);
     expect(isAdminRole("admin")).toBe(true);

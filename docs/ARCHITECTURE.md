@@ -26,7 +26,11 @@ Every external service implements `Provider` (`packages/core/src/provider.ts`): 
 
 ## Data provenance
 
-Every researched fact is stored with source URL, collected-at, source type, confidence, verification status and usage restrictions (Phase 4 schema).
+Every researched fact is stored with source URL, collected-at, source type, confidence, verification status and usage restrictions (`research_fact`, Phase 4). Discovery-record values are stored as facts too (`sourceType` osm/listing), so listing and website values share one shape and disagreements are flagged `conflicting` (see DATABASE_SCHEMA.md).
+
+## Job queue
+
+`apps/worker` processes two job types from PostgreSQL tables with the same mechanism (claim with `FOR UPDATE SKIP LOCKED`, stale-lock recovery after 10 minutes, max 5 attempts, progress committed per unit so a crashed run resumes): `discovery_run` (one unit = one category) and `research_run` (one unit = one business). No Redis.
 
 ## Human-in-the-loop
 

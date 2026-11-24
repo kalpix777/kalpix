@@ -10,8 +10,9 @@ describe("business filters", () => {
         phone: "1",
         run: "x'; drop",
         q: " cafe ",
+        research: "maybe",
       }),
-    ).toEqual({ category: "", website: "", phone: "", q: "cafe", run: "" });
+    ).toEqual({ category: "", website: "", phone: "", q: "cafe", run: "", research: "" });
   });
   it("builds a Prisma where for category, website and search", () => {
     const f = parseBusinessFilters({ category: "restaurants", website: "no", q: "udupi" });
@@ -30,6 +31,17 @@ describe("business filters", () => {
       { phone: { not: null } },
     ]);
     expect(businessWhere(parseBusinessFilters({ phone: "no" })).AND).toEqual([{ phone: null }]);
+  });
+  it("filters on research status", () => {
+    expect(businessWhere(parseBusinessFilters({ research: "never" })).AND).toEqual([
+      { lastResearchedAt: null },
+    ]);
+    expect(businessWhere(parseBusinessFilters({ research: "researched" })).AND).toEqual([
+      { lastResearchedAt: { not: null } },
+    ]);
+    expect(businessWhere(parseBusinessFilters({ research: "conflicts" })).AND).toEqual([
+      { facts: { some: { verificationStatus: "conflicting" } } },
+    ]);
   });
   it("round-trips filters into a query string", () => {
     expect(filtersToQuery({ category: "hotels", website: "", q: "a b" }, { page: "2" })).toBe(

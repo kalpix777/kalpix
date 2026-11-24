@@ -1,4 +1,4 @@
-// Kalpix schema (Phase 2 core + Phase 3 discovery). Auth tables follow Better Auth 1.7 (core + twoFactor + admin plugins).
+// Kalpix schema (Phase 2 core + Phase 3 discovery + Phase 4 research). Auth tables follow Better Auth 1.7 (core + twoFactor + admin plugins).
 generator client {
   provider = "prisma-client-js"
 }
@@ -27,6 +27,7 @@ model User {
   twoFactors       TwoFactor[]
   auditLogs        AuditLog[]
   discoveryRuns    DiscoveryRun[]
+  researchRuns     ResearchRun[]
 
   @@map("user")
 }
@@ -265,7 +266,7 @@ enum BusinessStatus {
 
 /// A discovered business with provenance (docs/ARCHITECTURE.md "Data provenance").
 model Business {
-  id                 String         @id @default(uuid())
+  id                 String             @id @default(uuid())
   name               String
   normalizedName     String
   category           String // Kalpix industry id, e.g. "restaurants"
@@ -274,7 +275,7 @@ model Business {
   providerId         String // "node/123" for OSM
   osmType            String?
   osmId              String?
-  alternateIds       String[]       @default([]) // provider:id of records merged by fuzzy dedupe
+  alternateIds       String[]           @default([]) // provider:id of records merged by fuzzy dedupe
   // address
   houseNumber        String?
   street             String?
@@ -292,7 +293,7 @@ model Business {
   website            String?
   email              String?
   openingHours       String?
-  hasWebsite         Boolean        @default(false)
+  hasWebsite         Boolean            @default(false)
   // provenance
   source             String // "openstreetmap" | "mock"
   sourceType         String // open_data | licensed_api | mock
@@ -300,15 +301,18 @@ model Business {
   collectedAt        DateTime
   lastSeenAt         DateTime
   confidence         Float // completeness heuristic 0..1, not a verification
-  verificationStatus String         @default("unverified")
+  verificationStatus String             @default("unverified")
   license            String?
   usageRestrictions  String?
   rawTags            Json?
   firstRunId         String?
   lastRunId          String?
-  status             BusinessStatus @default(NEW)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  status             BusinessStatus     @default(NEW)
+  lastResearchedAt   DateTime? // Phase 4: last website research of any outcome
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  researches         BusinessResearch[]
+  facts              ResearchFact[]
 
   @@unique([provider, providerId])
   @@index([category])
@@ -333,4 +337,114 @@ model GeocodeCache {
   fetchedAt   DateTime @default(now())
 
   @@map("geocode_cache")
+}
+
+// ---------- Phase 4: business research and extraction ----------
+
+enum ResearchRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+/// One website-research job; also the worker's queue (job type "research", same claim mechanism
+/// as discovery_run). Scope: explicit business ids, all businesses of a discovery run, or a filter.
+model ResearchRun {
+  id             String             @id @default(uuid())
+  provider       String // provider descriptor id: "http-extractor" | "mock-research"
+  status         ResearchRunStatus  @default(queued)
+  idempotencyKey String?            @unique
+  scopeType      String // businesses | discovery_run | filter
+  businessIds    String[]           @default([]) // scopeType=businesses
+  discoveryRunId String? // scopeType=discovery_run
+  filter         Json? // scopeType=filter (validated by parseResearchFilter)
+  // resolved once, so a resumed run researches exactly the same businesses
+  targetIds      String[]           @default([])
+  resolvedAt     DateTime?
+  // progress + counts (progress itself = business_research rows for this run)
+  totalCount     Int                @default(0)
+  processedCount Int                @default(0)
+  okCount        Int                @default(0)
+  noWebsiteCount Int                @default(0)
+  brokenCount    Int                @default(0)
+  blockedCount   Int                @default(0)
+  errorCount     Int                @default(0) // provider failures (ok:false) per business
+  factCount      Int                @default(0) // facts written (created or refreshed)
+  newFactCount   Int                @default(0)
+  conflictCount  Int                @default(0) // businesses with >= 1 conflicting field after research
+  requestCount   Int                @default(0)
+  attempts       Int                @default(0)
+  error          String?
+  errors         Json? // last per-business errors [{businessId, error}] (capped)
+  // who and when
+  startedById    String?
+  startedBy      User?              @relation(fields: [startedById], references: [id], onDelete: SetNull)
+  startedByLabel String
+  lockedBy       String?
+  lockedAt       DateTime?
+  createdAt      DateTime           @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  updatedAt      DateTime           @updatedAt
+  results        BusinessResearch[]
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("research_run")
+}
+
+/// Outcome of researching one business in one run. Observations only: no score (Phase 5).
+model BusinessResearch {
+  id             String      @id @default(uuid())
+  runId          String
+  run            ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  businessId     String
+  business       Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  provider       String
+  status         String // ok | no_website | broken | blocked | error
+  httpStatus     Int?
+  requestedUrl   String?
+  finalUrl       String?
+  signals        Json? // WebsiteSignals (packages/core/src/research.ts)
+  summary        String? // plain-language, score-free
+  factCount      Int         @default(0)
+  conflictFields String[]    @default([])
+  requestCount   Int         @default(0)
+  error          String?
+  researchedAt   DateTime    @default(now())
+
+  @@unique([runId, businessId])
+  @@index([businessId, researchedAt])
+  @@index([status])
+  @@map("business_research")
+}
+
+/// One value about a business with full provenance. Listing values (OSM / discovery record) are
+/// stored as facts too (sourceType osm|listing) so every value has the same provenance shape.
+model ResearchFact {
+  id                 String   @id @default(uuid())
+  businessId         String
+  business           Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  field              String // ResearchField: phone, email, social_facebook, opening_hours ...
+  value              String // as found, <= 1000 chars
+  normalizedValue    String // comparison key, <= 400 chars
+  // provenance
+  sourceUrl          String // <= 500 chars
+  sourceType         String // jsonld | microdata | meta | html | header | robots | osm | listing | mock
+  provider           String // provider that produced it: http-extractor | osm-overpass | ...
+  collectedAt        DateTime // latest time this value was seen at sourceUrl
+  confidence         Float // extraction-method reliability 0..1, NOT a verification
+  verificationStatus String   @default("unverified") // unverified | verified | conflicting
+  usageRestriction   String?
+  firstRunId         String?
+  lastRunId          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([businessId, field, normalizedValue, sourceUrl])
+  @@index([businessId, field])
+  @@index([field, verificationStatus])
+  @@map("research_fact")
 }
