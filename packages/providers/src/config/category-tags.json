@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "note": "Kalpix industry -> OpenStreetMap tag filters. Edit here, not in code. Order matters: an element matching several categories is classified under the first one listed.",
+  "categories": {
+    "hospitals": {
+      "label": "Hospitals",
+      "osm": [
+        { "key": "amenity", "values": ["hospital"] },
+        { "key": "healthcare", "values": ["hospital"] }
+      ]
+    },
+    "clinics": {
+      "label": "Clinics",
+      "osm": [
+        { "key": "amenity", "values": ["clinic", "doctors", "dentist"] },
+        {
+          "key": "healthcare",
+          "values": ["clinic", "doctor", "dentist", "physiotherapist", "laboratory", "optometrist"]
+        }
+      ]
+    },
+    "restaurants": {
+      "label": "Restaurants and cafes",
+      "osm": [
+        {
+          "key": "amenity",
+          "values": ["restaurant", "cafe", "fast_food", "food_court", "ice_cream", "bar", "pub"]
+        }
+      ]
+    },
+    "hotels": {
+      "label": "Hotels and stays",
+      "osm": [
+        { "key": "tourism", "values": ["hotel", "motel", "guest_house", "hostel", "apartment"] }
+      ]
+    },
+    "supermarkets": {
+      "label": "Supermarkets and grocery",
+      "osm": [
+        { "key": "shop", "values": ["supermarket", "convenience", "greengrocer", "wholesale"] }
+      ]
+    },
+    "garages": {
+      "label": "Garages and repair",
+      "osm": [
+        { "key": "shop", "values": ["car_repair", "motorcycle_repair", "tyres"] },
+        { "key": "craft", "values": ["car_repair"] }
+      ]
+    },
+    "automobile": {
+      "label": "Automobile dealers and rentals",
+      "osm": [
+        { "key": "shop", "values": ["car", "motorcycle", "car_parts", "truck"] },
+        { "key": "amenity", "values": ["car_rental"] }
+      ]
+    },
+    "retail": {
+      "label": "Retail shops",
+      "osm": [
+        {
+          "key": "shop",
+          "values": [
+            "clothes",
+            "shoes",
+            "electronics",
+            "mobile_phone",
+            "computer",
+            "furniture",
+            "jewelry",
+            "hardware",
+            "doityourself",
+            "books",
+            "stationery",
+            "gift",
+            "optician",
+            "sports",
+            "toys",
+            "bakery",
+            "confectionery",
+            "cosmetics",
+            "variety_store",
+            "department_store",
+            "houseware",
+            "fabric",
+            "bag",
+            "watches",
+            "paint",
+            "chemist",
+            "beauty",
+            "hairdresser"
+          ]
+        },
+        { "key": "amenity", "values": ["pharmacy"] }
+      ]
+    },
+    "education": {
+      "label": "Education",
+      "osm": [
+        {
+          "key": "amenity",
+          "values": [
+            "school",
+            "college",
+            "university",
+            "kindergarten",
+            "language_school",
+            "music_school",
+            "driving_school",
+            "training",
+            "prep_school"
+          ]
+        }
+      ]
+    },
+    "real_estate": {
+      "label": "Real estate",
+      "osm": [
+        { "key": "office", "values": ["estate_agent", "property_management"] },
+        { "key": "shop", "values": ["estate_agent"] }
+      ]
+    },
+    "professional_services": {
+      "label": "Professional services",
+      "osm": [
+        {
+          "key": "office",
+          "values": [
+            "lawyer",
+            "accountant",
+            "architect",
+            "consulting",
+            "insurance",
+            "financial",
+            "financial_advisor",
+            "tax_advisor",
+            "notary",
+            "engineer",
+            "it",
+            "advertising_agency",
+            "travel_agent"
+          ]
+        },
+        { "key": "shop", "values": ["travel_agency"] }
+      ]
+    },
+    "manufacturers": {
+      "label": "Manufacturers and industry",
+      "osm": [
+        { "key": "man_made", "values": ["works"] },
+        {
+          "key": "industrial",
+          "values": ["factory", "manufacturing", "machine_shop", "food_industry", "foundry"]
+        },
+        { "key": "craft", "values": ["metal_construction", "carpenter"] }
+      ]
+    }
+  }
+}

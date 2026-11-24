@@ -6,6 +6,17 @@ const optionalSecret = z
   .optional()
   .transform((v) => (v && v.trim().length > 0 ? v : undefined));
 
+/** DISCOVERY_PROVIDER values; legacy "osm" / "google-places" are normalised. */
+export const DISCOVERY_PROVIDERS = ["overpass", "mock", "google_places"] as const;
+const LEGACY_DISCOVERY: Record<string, string> = {
+  osm: "overpass",
+  "google-places": "google_places",
+};
+
+/** Unset or empty means "use the default". */
+const blankToUndefined = (v: unknown) =>
+  typeof v === "string" && v.trim().length === 0 ? undefined : v;
+
 export const envSchema = z
   .object({
     APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
@@ -31,6 +42,33 @@ export const envSchema = z
     RAZORPAY_KEY_SECRET: optionalSecret,
     RAZORPAY_WEBHOOK_SECRET: optionalSecret,
     CLOUDFLARE_API_TOKEN: optionalSecret,
+    // --- Phase 3: discovery + worker ---
+    DISCOVERY_PROVIDER: z.preprocess((v) => {
+      const b = blankToUndefined(v);
+      if (typeof b !== "string") return b;
+      const t = b.trim().toLowerCase();
+      return LEGACY_DISCOVERY[t] ?? t;
+    }, z.enum(DISCOVERY_PROVIDERS).default("overpass")),
+    DISCOVERY_MAX_BBOX_DEG2: z.preprocess(
+      blankToUndefined,
+      z.coerce.number().positive().max(10).default(0.25),
+    ),
+    NOMINATIM_COUNTRY_CODES: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(
+          /^[a-z]{2}(,[a-z]{2})*$/,
+          "Use ISO 3166-1 alpha-2 codes, comma separated (e.g. in,np)",
+        )
+        .default("in"),
+    ),
+    WORKER_POLL_INTERVAL_MS: z.preprocess(
+      blankToUndefined,
+      z.coerce.number().int().min(1000).max(3_600_000).default(5000),
+    ),
   })
   .superRefine((env, ctx) => {
     if (env.APP_ENV === "production") {
@@ -46,6 +84,13 @@ export const envSchema = z
           code: "custom",
           path: ["DATABASE_URL"],
           message: "Default development password is not allowed in production",
+        });
+      }
+      if (env.DISCOVERY_PROVIDER === "mock") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["DISCOVERY_PROVIDER"],
+          message: "DISCOVERY_PROVIDER=mock is not allowed in production",
         });
       }
       if (env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")) {

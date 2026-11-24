@@ -24,14 +24,19 @@ jobs:
           sed -i 's#^AUTH_SECRET=.*#AUTH_SECRET=ci-only-secret-0123456789abcdef0123456789#' .env
           sed -i 's#^SEED_OWNER_EMAIL=.*#SEED_OWNER_EMAIL=owner@ci.local#' .env
           sed -i 's#^SEED_OWNER_PASSWORD=.*#SEED_OWNER_PASSWORD=Ci-Owner-Pass-2026!#' .env
+          # Offline, deterministic discovery: CI never calls Overpass/Nominatim.
+          sed -i 's#^DISCOVERY_PROVIDER=.*#DISCOVERY_PROVIDER=mock#' .env
+          grep -q '^DISCOVERY_PROVIDER=mock' .env || echo 'DISCOVERY_PROVIDER=mock' >> .env
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm verify
       - run: pnpm db:check
       - run: pnpm db:deploy
       - run: pnpm db:seed
+      - name: Worker integration tests (real PostgreSQL, mock provider)
+        run: pnpm -F @kalpix/worker test:integration
       - run: pnpm build
-      - name: End-to-end smoke and MFA tests
+      - name: End-to-end smoke, MFA and discovery tests
         run: |
           pnpm start &
           npx wait-on http://localhost:3000/login --timeout 60000

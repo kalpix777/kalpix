@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { NAV } from "@/lib/navigation";
+import { isBuilt, NAV } from "@/lib/navigation";
 import { formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,7 +89,9 @@ export default async function OverviewPage({
               >
                 <Icon name={n.icon} className="h-4 w-4 text-brand-700" />
                 <span className="text-sm font-medium">{n.label}</span>
-                <Badge className="ml-auto">Phase {n.phase}</Badge>
+                <Badge className="ml-auto" tone={isBuilt(n) ? "green" : "neutral"}>
+                  {isBuilt(n) ? "Built" : `Phase ${n.phase}`}
+                </Badge>
               </Link>
             ))}
           </CardContent>

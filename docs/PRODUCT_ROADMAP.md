@@ -3,8 +3,8 @@
 | #   | Phase                                 | Status                                    |
 | --- | ------------------------------------- | ----------------------------------------- |
 | 1   | Environment and project setup         | Built; local checks on owner machine open |
-| 2   | Core app, database, admin dashboard   | Built and tested; awaiting approval       |
-| 3   | Business discovery engine             | Not started                               |
+| 2   | Core app, database, admin dashboard   | Approved                                  |
+| 3   | Business discovery engine             | Built and tested; awaiting approval       |
 | 4   | Business research and extraction      | Not started                               |
 | 5   | Verification and AI qualification     | Not started                               |
 | 6   | CRM and lead management               | Not started                               |

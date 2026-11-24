@@ -14,7 +14,8 @@
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
-    "e2e": "dotenv -e ../../.env -- tsx e2e/smoke.mjs && dotenv -e ../../.env -- tsx e2e/mfa.mjs",
+    "e2e": "dotenv -e ../../.env -- tsx e2e/smoke.mjs && dotenv -e ../../.env -- tsx e2e/mfa.mjs && dotenv -e ../../.env -- tsx e2e/discovery.mjs",
+    "e2e:discovery": "dotenv -e ../../.env -- tsx e2e/discovery.mjs",
     "lint": "eslint ."
   },
   "prisma": {
@@ -23,6 +24,7 @@
   "dependencies": {
     "@kalpix/config": "workspace:*",
     "@kalpix/core": "workspace:*",
+    "@kalpix/providers": "workspace:*",
     "@prisma/client": "~6.19.0",
     "better-auth": "~1.7.0",
     "clsx": "^2.1.1",

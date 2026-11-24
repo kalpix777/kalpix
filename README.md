@@ -9,8 +9,9 @@ Pilot market: Belagavi, Karnataka. Built to expand across India and internationa
 ## Status
 
 - **Phase 1** (environment and foundation): built and tested; local checks on the owner's machine still open.
-- **Phase 2** (core app, database, admin dashboard): built and tested; awaiting owner review and approval.
-- Phase 3 has not started.
+- **Phase 2** (core app, database, admin dashboard): approved.
+- **Phase 3** (business discovery: OSM Overpass/Nominatim, worker queue, Discovery and Businesses pages, CSV export): built and tested with the MOCK provider; live OSM data not yet verified; awaiting owner approval.
+- Phase 4 has not started.
 
 ## Quick start (local)
 
@@ -28,16 +29,35 @@ pnpm db:deploy                # apply migrations
 pnpm db:seed                  # providers (disabled), settings, DEMO packages, first owner
 pnpm dev                      # admin at http://localhost:3000, sign in, then enable MFA
 pnpm build && pnpm start      # production build; in another terminal: pnpm e2e
+pnpm worker                   # discovery worker: polls the queue (WORKER_POLL_INTERVAL_MS)
+pnpm worker:once              # drain the queue once and exit (CI, cron)
 ```
+
+For offline testing run the app with `DISCOVERY_PROVIDER=mock pnpm start` (MOCK data, refused in production). Worker integration tests: `pnpm -F @kalpix/worker test:integration` (needs PostgreSQL).
+
+### Discovery environment variables (Phase 3)
+
+| Variable                  | Default                                   | Purpose                                                                 |
+| ------------------------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| `DISCOVERY_PROVIDER`      | `overpass`                                | `overpass`, `mock` (not in production) or `google_places` (stub)        |
+| `OVERPASS_API_URL`        | `https://overpass-api.de/api/interpreter` | Overpass endpoint (point at your own instance for heavy use)            |
+| `NOMINATIM_BASE_URL`      | `https://nominatim.openstreetmap.org`     | Geocoder for place names                                                |
+| `NOMINATIM_CONTACT_EMAIL` | (empty)                                   | Required by the Nominatim usage policy; place names disabled without it |
+| `NOMINATIM_COUNTRY_CODES` | `in`                                      | Limits geocoding to these countries                                     |
+| `DISCOVERY_MAX_BBOX_DEG2` | `0.25`                                    | Largest search box in square degrees                                    |
+| `WORKER_POLL_INTERVAL_MS` | `5000`                                    | Worker poll interval (min 1000)                                         |
+| `GOOGLE_PLACES_API_KEY`   | (empty)                                   | Paid; stays disabled until approved                                     |
+
+Overpass and Nominatim must also be enabled and marked commercial-use verified by the owner in AI Provider Settings.
 
 ## Repository layout
 
 ```
 apps/admin        Next.js admin dashboard: auth, RBAC, MFA, audit, providers, pricing
-apps/worker       background jobs (Phase 3+)
+apps/worker       background worker: discovery queue (pnpm worker / worker:once)
 packages/config   validated environment config (zod), secret-safe status
 packages/core     provider contracts, Result type, enable rules
-packages/providers  adapters: OSM, Ollama, Gemini, Resend, Razorpay... (Phase 3+)
+packages/providers  discovery adapters: OSM Overpass, Nominatim, MOCK, Google Places stub
 infra/docker      local dev services
 infra/backup      database backup script
 scripts           doctor (environment inspection), check-db

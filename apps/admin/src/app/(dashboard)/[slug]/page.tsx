@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { NAV } from "@/lib/navigation";
+import { isBuilt, NAV } from "@/lib/navigation";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { requireUser } from "@/server/session";
 export default async function ModulePlaceholder({ params }: { params: Promise<{ slug: string }> }) {
   await requireUser();
   const { slug } = await params;
-  const item = NAV.find((n) => n.slug === slug && n.phase > 2);
+  const item = NAV.find((n) => n.slug === slug && !isBuilt(n));
   if (!item) notFound();
   return (
     <>

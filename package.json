@@ -23,6 +23,8 @@
     "dev": "pnpm -F @kalpix/admin dev",
     "build": "pnpm -F @kalpix/admin build",
     "start": "pnpm -F @kalpix/admin start",
+    "worker": "pnpm -F @kalpix/worker start",
+    "worker:once": "pnpm -F @kalpix/worker once",
     "db:generate": "pnpm -F @kalpix/admin db:generate",
     "db:migrate": "pnpm -F @kalpix/admin db:migrate",
     "db:deploy": "pnpm -F @kalpix/admin db:deploy",

@@ -1,5 +1,6 @@
 import {
   BadgeIndianRupee,
+  Building2,
   Cpu,
   CreditCard,
   FileSearch,
@@ -29,6 +30,7 @@ import {
 
 const ICONS: Record<string, LucideIcon> = {
   BadgeIndianRupee,
+  Building2,
   Cpu,
   CreditCard,
   FileSearch,

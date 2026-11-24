@@ -1,0 +1,60 @@
+{
+  "version": 0.6,
+  "generator": "fixture (hand-written, shaped like an Overpass API response)",
+  "osm3s": {
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "node",
+      "id": 1001,
+      "lat": 15.8601,
+      "lon": 74.5101,
+      "tags": {
+        "amenity": "restaurant",
+        "name": "  Fixture   Udupi Hotel ",
+        "addr:street": "College Road",
+        "addr:city": "Belagavi",
+        "addr:postcode": "590001",
+        "phone": "0831 242 2222; 98450 12345",
+        "website": "fixture-udupi.example.in",
+        "opening_hours": "Mo-Su 07:00-22:00"
+      }
+    },
+    {
+      "type": "way",
+      "id": 2002,
+      "center": { "lat": 15.8655, "lon": 74.5055 },
+      "tags": {
+        "amenity": "hospital",
+        "healthcare": "hospital",
+        "name": "Fixture General Hospital",
+        "contact:phone": "+91 831 240 0000"
+      }
+    },
+    { "type": "node", "id": 1003, "lat": 15.861, "lon": 74.511, "tags": { "amenity": "cafe" } },
+    {
+      "type": "node",
+      "id": 1004,
+      "lat": 15.862,
+      "lon": 74.512,
+      "tags": {
+        "shop": "car_repair",
+        "name": "Fixture Motors Garage",
+        "email": "mailto:Service@Fixture-Motors.example"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1001,
+      "lat": 15.8601,
+      "lon": 74.5101,
+      "tags": { "amenity": "restaurant", "name": "Fixture Udupi Hotel" }
+    },
+    {
+      "type": "relation",
+      "id": 3003,
+      "tags": { "amenity": "college", "name": "No Centre College" }
+    }
+  ]
+}

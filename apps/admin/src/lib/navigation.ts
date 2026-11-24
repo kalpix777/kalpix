@@ -29,6 +29,14 @@ export const NAV: NavItem[] = [
       "Find businesses by city, category and country through OpenStreetMap and licensed providers.",
   },
   {
+    slug: "businesses",
+    label: "Businesses",
+    group: "Acquire",
+    phase: 3,
+    icon: "Building2",
+    description: "Every discovered business with its source, date and confidence.",
+  },
+  {
     slug: "research",
     label: "Business Research",
     group: "Acquire",
@@ -215,4 +223,7 @@ export const NAV: NavItem[] = [
   },
 ];
 
-export const PHASE2_SLUGS = new Set(NAV.filter((n) => n.phase === 2).map((n) => n.slug));
+/** Highest phase whose modules are built. Modules above it show an honest "Not built yet". */
+export const BUILT_THROUGH_PHASE = 3;
+
+export const isBuilt = (n: Pick<NavItem, "phase">) => n.phase <= BUILT_THROUGH_PHASE;

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV } from "@/lib/navigation";
+import { isBuilt, NAV } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { Icon } from "./icon";
 
@@ -33,7 +33,7 @@ export function Sidebar({ allowed }: { allowed: string[] }) {
                   >
                     <Icon name={n.icon} className="h-4 w-4 shrink-0" />
                     <span className="truncate">{n.label}</span>
-                    {n.phase > 2 && (
+                    {!isBuilt(n) && (
                       <span className="ml-auto text-[10px] font-semibold text-slate-400">
                         P{n.phase}
                       </span>
