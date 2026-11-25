@@ -8,9 +8,13 @@ export interface BusinessFilters {
   q?: string;
   run?: string;
   research?: string; // "never" | "researched" | "conflicts" | ""
+  tier?: string; // "hot" | "warm" | "cold" | "disqualified" | "unqualified" | ""
+  sort?: string; // "" (most recently seen) | "score"
 }
 
 export const RESEARCH_FILTERS = ["never", "researched", "conflicts"] as const;
+export const TIER_FILTERS = ["hot", "warm", "cold", "disqualified", "unqualified"] as const;
+export const SORTS = ["score"] as const;
 
 /** Parses untrusted query-string filters into a safe shape (unknown values are dropped). */
 export function parseBusinessFilters(sp: Record<string, string | string[] | undefined>) {
@@ -20,6 +24,8 @@ export function parseBusinessFilters(sp: Record<string, string | string[] | unde
   const phone = one(sp.phone);
   const run = one(sp.run);
   const research = one(sp.research);
+  const tier = one(sp.tier);
+  const sort = one(sp.sort);
   return {
     category: isKalpixCategory(category) ? category : "",
     website: website === "yes" || website === "no" ? website : "",
@@ -27,6 +33,8 @@ export function parseBusinessFilters(sp: Record<string, string | string[] | unde
     q: one(sp.q).slice(0, 100),
     run: /^[0-9a-f-]{36}$/i.test(run) ? run : "",
     research: (RESEARCH_FILTERS as readonly string[]).includes(research) ? research : "",
+    tier: (TIER_FILTERS as readonly string[]).includes(tier) ? tier : "",
+    sort: (SORTS as readonly string[]).includes(sort) ? sort : "",
   };
 }
 
@@ -41,6 +49,8 @@ export function businessWhere(f: BusinessFilters): Prisma.BusinessWhereInput {
   if (f.research === "researched") and.push({ lastResearchedAt: { not: null } });
   if (f.research === "conflicts")
     and.push({ facts: { some: { verificationStatus: "conflicting" } } });
+  if (f.tier === "unqualified") and.push({ latestTier: null });
+  else if (f.tier) and.push({ latestTier: f.tier });
   if (f.run) and.push({ OR: [{ firstRunId: f.run }, { lastRunId: f.run }] });
   if (f.q) {
     const contains = { contains: f.q, mode: "insensitive" as const };
@@ -56,6 +66,13 @@ export function businessWhere(f: BusinessFilters): Prisma.BusinessWhereInput {
     });
   }
   return and.length ? { AND: and } : {};
+}
+
+/** "score": highest latest score first (never-qualified last); default: most recently seen. */
+export function businessOrderBy(f: BusinessFilters): Prisma.BusinessOrderByWithRelationInput[] {
+  if (f.sort === "score")
+    return [{ latestScore: { sort: "desc", nulls: "last" } }, { name: "asc" }];
+  return [{ lastSeenAt: "desc" }, { name: "asc" }];
 }
 
 export function filtersToQuery(f: BusinessFilters, extra: Record<string, string> = {}) {

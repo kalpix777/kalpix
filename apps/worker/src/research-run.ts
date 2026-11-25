@@ -252,7 +252,8 @@ async function upsertFacts(
 
 /**
  * Re-evaluates conflicts over ALL stored facts of the business (not only this run's), moving facts
- * between unverified and conflicting. "verified" (set by Phase 5) is never changed here.
+ * between unverified and conflicting. "verified"/"invalid" (Phase 5 verification) and manual
+ * overrides are never changed here.
  */
 async function refreshConflicts(tx: Prisma.TransactionClient, businessId: string) {
   const facts = await tx.researchFact.findMany({
@@ -262,13 +263,19 @@ async function refreshConflicts(tx: Prisma.TransactionClient, businessId: string
   const conflicting = [...detectConflicts(facts)].sort();
   if (conflicting.length)
     await tx.researchFact.updateMany({
-      where: { businessId, field: { in: conflicting }, verificationStatus: "unverified" },
+      where: {
+        businessId,
+        field: { in: conflicting },
+        verificationStatus: "unverified",
+        verificationOverride: false,
+      },
       data: { verificationStatus: "conflicting" },
     });
   await tx.researchFact.updateMany({
     where: {
       businessId,
       verificationStatus: "conflicting",
+      verificationOverride: false, // a person's decision is never reverted here
       ...(conflicting.length ? { field: { notIn: conflicting } } : {}),
     },
     data: { verificationStatus: "unverified" },

@@ -11,6 +11,8 @@ export const PERMISSIONS = [
   "leads:write",
   "discovery:run",
   "research:run",
+  "qualification:run",
+  "facts:verify",
   "businesses:export",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -27,9 +29,18 @@ const MATRIX: Record<Role, readonly Permission[]> = {
     "leads:write",
     "discovery:run",
     "research:run",
+    "qualification:run",
+    "facts:verify",
     "businesses:export",
   ],
-  operator: ["dashboard:read", "leads:write", "discovery:run", "research:run"],
+  operator: [
+    "dashboard:read",
+    "leads:write",
+    "discovery:run",
+    "research:run",
+    "qualification:run",
+    "facts:verify",
+  ],
   viewer: ["dashboard:read"],
 };
 

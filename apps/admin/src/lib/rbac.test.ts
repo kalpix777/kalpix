@@ -36,6 +36,15 @@ describe("rbac", () => {
     expect(can("admin", "research:run")).toBe(true);
     expect(can("owner", "research:run")).toBe(true);
   });
+  it("operators and above run qualification and override fact verification; viewers only read", () => {
+    for (const p of ["qualification:run", "facts:verify"] as const) {
+      expect(can("viewer", p)).toBe(false);
+      expect(can("operator", p)).toBe(true);
+      expect(can("admin", p)).toBe(true);
+      expect(can("owner", p)).toBe(true);
+      expect(can("superuser", p)).toBe(false);
+    }
+  });
   it("identifies admin roles for MFA enforcement", () => {
     expect(isAdminRole("owner")).toBe(true);
     expect(isAdminRole("admin")).toBe(true);

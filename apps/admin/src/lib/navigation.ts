@@ -51,7 +51,8 @@ export const NAV: NavItem[] = [
     group: "Acquire",
     phase: 5,
     icon: "Target",
-    description: "Scored and qualified businesses that need a better website.",
+    description:
+      "Verify facts and score businesses with transparent rules; optional AI suggestions kept separate.",
   },
   {
     slug: "crm",
@@ -224,6 +225,6 @@ export const NAV: NavItem[] = [
 ];
 
 /** Highest phase whose modules are built. Modules above it show an honest "Not built yet". */
-export const BUILT_THROUGH_PHASE = 4;
+export const BUILT_THROUGH_PHASE = 5;
 
 export const isBuilt = (n: Pick<NavItem, "phase">) => n.phase <= BUILT_THROUGH_PHASE;

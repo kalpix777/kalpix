@@ -24,11 +24,14 @@ jobs:
           sed -i 's#^AUTH_SECRET=.*#AUTH_SECRET=ci-only-secret-0123456789abcdef0123456789#' .env
           sed -i 's#^SEED_OWNER_EMAIL=.*#SEED_OWNER_EMAIL=owner@ci.local#' .env
           sed -i 's#^SEED_OWNER_PASSWORD=.*#SEED_OWNER_PASSWORD=Ci-Owner-Pass-2026!#' .env
-          # Offline, deterministic discovery and research: CI never calls Overpass/Nominatim or websites.
+          # Offline, deterministic discovery, research and qualification: CI never calls Overpass/Nominatim or websites.
           sed -i 's#^DISCOVERY_PROVIDER=.*#DISCOVERY_PROVIDER=mock#' .env
           grep -q '^DISCOVERY_PROVIDER=mock' .env || echo 'DISCOVERY_PROVIDER=mock' >> .env
           sed -i 's#^RESEARCH_PROVIDER=.*#RESEARCH_PROVIDER=mock#' .env
           grep -q '^RESEARCH_PROVIDER=mock' .env || echo 'RESEARCH_PROVIDER=mock' >> .env
+          # Qualification AI uses the MOCK model only: CI never calls Ollama or Gemini.
+          sed -i 's#^QUALIFICATION_AI_PROVIDER=.*#QUALIFICATION_AI_PROVIDER=mock#' .env
+          grep -q '^QUALIFICATION_AI_PROVIDER=mock' .env || echo 'QUALIFICATION_AI_PROVIDER=mock' >> .env
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm verify
@@ -38,7 +41,7 @@ jobs:
       - name: Worker integration tests (real PostgreSQL, mock provider)
         run: pnpm -F @kalpix/worker test:integration
       - run: pnpm build
-      - name: End-to-end smoke, MFA, discovery and research tests
+      - name: End-to-end smoke, MFA, discovery, research and qualification tests
         run: |
           pnpm start &
           npx wait-on http://localhost:3000/login --timeout 60000

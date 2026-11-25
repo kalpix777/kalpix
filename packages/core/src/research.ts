@@ -26,7 +26,11 @@ export const RESEARCH_SOURCE_TYPES = [
 ] as const;
 export type ResearchSourceType = (typeof RESEARCH_SOURCE_TYPES)[number];
 
-export const VERIFICATION_STATUSES = ["unverified", "verified", "conflicting"] as const;
+/**
+ * Fact verification states. Phase 4 only moves facts between unverified and conflicting; the
+ * Phase 5 verification pass (packages/core/src/verification.ts) sets verified and invalid.
+ */
+export const VERIFICATION_STATUSES = ["unverified", "verified", "conflicting", "invalid"] as const;
 export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 
 export const RESEARCH_FIELDS = [

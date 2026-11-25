@@ -135,4 +135,56 @@ describe("loadEnv", () => {
       loadEnv({ ...prod, RESEARCH_USER_AGENT_CONTACT: "ops@kalpix.in" }).RESEARCH_PROVIDER,
     ).toBe("http");
   });
+
+  it("applies Phase 5 qualification defaults (AI off, rules only)", () => {
+    const env = loadEnv({ ...base, OLLAMA_BASE_URL: "", QUALIFICATION_AI_PROVIDER: "" });
+    expect(env.QUALIFICATION_AI_PROVIDER).toBe("none");
+    expect(env.QUALIFICATION_PROMPT_VERSION).toBe("qual-v1");
+    expect(env.VERIFICATION_DNS_TIMEOUT_MS).toBe(3000);
+    expect(env.OLLAMA_BASE_URL).toBeUndefined();
+    expect(env.GEMINI_API_KEY).toBeUndefined();
+  });
+
+  it("parses and validates Phase 5 settings", () => {
+    const env = loadEnv({
+      ...base,
+      QUALIFICATION_AI_PROVIDER: "Ollama",
+      OLLAMA_BASE_URL: "http://localhost:11434",
+      QUALIFICATION_PROMPT_VERSION: "qual-v2",
+      VERIFICATION_DNS_TIMEOUT_MS: "1500",
+    });
+    expect(env.QUALIFICATION_AI_PROVIDER).toBe("ollama");
+    expect(env.VERIFICATION_DNS_TIMEOUT_MS).toBe(1500);
+    expect(env.QUALIFICATION_PROMPT_VERSION).toBe("qual-v2");
+    expect(() => loadEnv({ ...base, QUALIFICATION_AI_PROVIDER: "openai" })).toThrow(
+      /QUALIFICATION_AI_PROVIDER/,
+    );
+    expect(() => loadEnv({ ...base, VERIFICATION_DNS_TIMEOUT_MS: "50" })).toThrow(
+      /VERIFICATION_DNS_TIMEOUT_MS/,
+    );
+    expect(() => loadEnv({ ...base, QUALIFICATION_PROMPT_VERSION: "v 1; drop" })).toThrow(
+      /QUALIFICATION_PROMPT_VERSION/,
+    );
+  });
+
+  it("requires the key / base URL of the chosen AI provider and refuses mock in production", () => {
+    expect(() => loadEnv({ ...base, QUALIFICATION_AI_PROVIDER: "gemini" })).toThrow(
+      /GEMINI_API_KEY/,
+    );
+    expect(() => loadEnv({ ...base, QUALIFICATION_AI_PROVIDER: "ollama" })).toThrow(
+      /OLLAMA_BASE_URL/,
+    );
+    const g = loadEnv({ ...base, QUALIFICATION_AI_PROVIDER: "gemini", GEMINI_API_KEY: "k-test" });
+    expect(g.QUALIFICATION_AI_PROVIDER).toBe("gemini");
+    expect(JSON.stringify(integrationStatus(g))).not.toContain("k-test");
+    expect(() =>
+      loadEnv({
+        ...base,
+        APP_ENV: "production",
+        AUTH_SECRET: "x".repeat(40),
+        RESEARCH_USER_AGENT_CONTACT: "ops@example.org",
+        QUALIFICATION_AI_PROVIDER: "mock",
+      }),
+    ).toThrow(/QUALIFICATION_AI_PROVIDER=mock is not allowed in production/);
+  });
 });

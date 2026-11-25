@@ -16,6 +16,9 @@ const LEGACY_DISCOVERY: Record<string, string> = {
 /** RESEARCH_PROVIDER values (Phase 4). */
 export const RESEARCH_PROVIDERS = ["http", "mock"] as const;
 
+/** QUALIFICATION_AI_PROVIDER values (Phase 5). "none" = rules-only qualification. */
+export const QUALIFICATION_AI_PROVIDERS = ["none", "mock", "ollama", "gemini"] as const;
+
 /** Unset or empty means "use the default". */
 const blankToUndefined = (v: unknown) =>
   typeof v === "string" && v.trim().length === 0 ? undefined : v;
@@ -32,7 +35,7 @@ export const envSchema = z
         message: "DATABASE_URL must be a PostgreSQL connection string",
       }),
     AUTH_SECRET: optionalSecret,
-    OLLAMA_BASE_URL: z.string().url().optional(),
+    OLLAMA_BASE_URL: z.preprocess(blankToUndefined, z.string().url().optional()),
     GEMINI_API_KEY: optionalSecret,
     OPENAI_API_KEY: optionalSecret,
     ANTHROPIC_API_KEY: optionalSecret,
@@ -98,13 +101,58 @@ export const envSchema = z
         )
         .optional(),
     ),
+    // --- Phase 5: verification and qualification ---
+    QUALIFICATION_AI_PROVIDER: z.preprocess(
+      (v) => (typeof blankToUndefined(v) === "string" ? String(v).trim().toLowerCase() : undefined),
+      z.enum(QUALIFICATION_AI_PROVIDERS).default("none"),
+    ),
+    QUALIFICATION_PROMPT_VERSION: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .trim()
+        .regex(/^[A-Za-z0-9._-]{1,40}$/, "Use letters, digits, dot, dash or underscore (max 40)")
+        .default("qual-v1"),
+    ),
+    VERIFICATION_DNS_TIMEOUT_MS: z.preprocess(
+      blankToUndefined,
+      z.coerce.number().int().min(200).max(30_000).default(3000),
+    ),
+    GEMINI_MODEL: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .trim()
+        .regex(/^[A-Za-z0-9.-]{1,80}$/, "Invalid Gemini model name")
+        .optional(),
+    ),
+    OLLAMA_MODEL: z.preprocess(blankToUndefined, z.string().trim().max(120).optional()),
     WORKER_POLL_INTERVAL_MS: z.preprocess(
       blankToUndefined,
       z.coerce.number().int().min(1000).max(3_600_000).default(5000),
     ),
   })
   .superRefine((env, ctx) => {
+    if (env.QUALIFICATION_AI_PROVIDER === "gemini" && !env.GEMINI_API_KEY)
+      ctx.addIssue({
+        code: "custom",
+        path: ["GEMINI_API_KEY"],
+        message: "GEMINI_API_KEY is required when QUALIFICATION_AI_PROVIDER=gemini",
+      });
+    if (env.QUALIFICATION_AI_PROVIDER === "ollama" && !env.OLLAMA_BASE_URL)
+      ctx.addIssue({
+        code: "custom",
+        path: ["OLLAMA_BASE_URL"],
+        message: "OLLAMA_BASE_URL is required when QUALIFICATION_AI_PROVIDER=ollama",
+      });
     if (env.APP_ENV === "production") {
+      if (env.QUALIFICATION_AI_PROVIDER === "mock") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["QUALIFICATION_AI_PROVIDER"],
+          message: "QUALIFICATION_AI_PROVIDER=mock is not allowed in production",
+        });
+      }
       if (!env.AUTH_SECRET || env.AUTH_SECRET.length < 32) {
         ctx.addIssue({
           code: "custom",

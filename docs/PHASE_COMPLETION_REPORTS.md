@@ -109,7 +109,7 @@ Rs 0. Overpass and Nominatim are free public services with usage policies; no pa
 
 ## Phase 4: Business research and extraction
 
-**Status: built and tested in the build environment against a real PostgreSQL 17 server, in-process HTTP test sites and the MOCK providers. Live website research is unverified from the build sandbox (see below). Awaiting owner review and approval. Phase 5 not started.**
+**Status: approved by the owner. Built and tested in the build environment against a real PostgreSQL 17 server, in-process HTTP test sites and the MOCK providers. Live website research is unverified from the build sandbox (see below).**
 
 ### Delivered
 
@@ -156,3 +156,55 @@ Live website research was not verified from the build sandbox (outbound requests
 ### Cost
 
 Rs 0. No paid API; website fetches are recorded as `usage_event` with `costMinor = 0`.
+
+## Phase 5: Verification and AI qualification
+
+**Status: built and tested in the build environment against a real PostgreSQL 17 server, the MOCK discovery/research providers and the MOCK model. Ollama and Gemini were never called live. Awaiting owner review and approval. Phase 6 not started.**
+
+### Delivered
+
+- `packages/core/src/verification.ts`: automatic fact checks (phone format + independent-source agreement, email syntax + reserved/test/disposable domains + MX lookup, website reachability from research, Indian PIN format + state prefix, conflicts), statuses `verified / unverified / conflicting / invalid`, manual override statuses.
+- `packages/core/src/qualification.ts`: transparent rules score (`rules-v1`, 0-100: website opportunity, contactability, category fit), tiers hot / warm / cold / disqualified (duplicate, closed, no usable contact), every reason linked to the facts it rests on. `packages/core/src/model.ts`: model contract.
+- `packages/providers/src/model/`: MOCK, Ollama and Gemini adapters (prompt `qual-v1`, JSON output validated, token counts and cost recorded), MX resolver in `packages/providers/src/verification/`.
+- Migration `20261125000000_phase5_qualification`: `qualification_run`, `business_qualification` (unique per run and business), verification/override columns on `research_fact`, `business.latestScore / latestTier / qualifiedAt`.
+- `apps/worker`: job type "qualification" (`qualification-run.ts`, `verification-store.ts`): verify facts, score, tier, optional AI suggestion, per-business transaction, resumable.
+- Admin: **Lead Qualification** page (`/leads`: AI readiness, start a run, run table with tier/fact/AI counts, ranked leads with top reason and contactability); business detail Qualification card (score, tier, component bars, reasons with fact links), **"AI suggestion — not verified"** card, per-fact verification status with override form (reason required) and remove-override; Businesses list Score and Tier columns, tier filter and score sort.
+- HTTP API: `GET/POST /api/qualification/runs`; server actions for start/retry/cancel and fact override/clear (see API_DOCUMENTATION.md). RBAC: `qualification:run`, `facts:verify` (operator+). Audit: `qualification.run_start`, `qualification.run_retry`, `qualification.run_cancel`, `fact.verify_override`, `fact.verify_override_clear`.
+- E2E: `apps/admin/e2e/qualification.mjs` (`pnpm -F @kalpix/admin e2e:qualification`, part of `pnpm e2e`); CI sets `QUALIFICATION_AI_PROVIDER=mock`.
+- Env: `QUALIFICATION_AI_PROVIDER`, `QUALIFICATION_PROMPT_VERSION`, `VERIFICATION_DNS_TIMEOUT_MS`, `OLLAMA_MODEL`, `GEMINI_MODEL`.
+
+### Acceptance criteria
+
+| Criterion                                                                             | Status                                      |
+| ------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Typecheck, lint, format                                                               | PASS                                        |
+| Unit tests (`pnpm verify`)                                                            | PASS (228/228)                              |
+| Worker integration tests (real PostgreSQL)                                            | PASS (20/20)                                |
+| Production build                                                                      | PASS                                        |
+| E2E smoke / MFA / discovery / research / qualification (`pnpm start`)                 | PASS (29/29, 6/6, 30/30, 33/33, 48/48)      |
+| RBAC (anonymous 401, viewer 403 and no forms, operator 202), cross-origin 403         | PASS (e2e)                                  |
+| Explicitly chosen AI provider that is not ready refused (409)                         | PASS (e2e)                                  |
+| Idempotent run start; re-run creates no duplicate qualifications or facts             | PASS (e2e + integration)                    |
+| Leads ranked by score; detail shows score, tier, reasons, MOCK AI card                | PASS (e2e, screenshots)                     |
+| Manual override saved with reason, audited, kept by the automatic pass; clear audited | PASS (e2e)                                  |
+| Live Ollama / Gemini calls                                                            | NOT VERIFIED (never called)                 |
+| Runs on owner's machine; CI green on GitHub                                           | PENDING / see CI run for the Phase 5 commit |
+
+### Safety and data handling
+
+- AI is off by default (`QUALIFICATION_AI_PROVIDER=none`) and gated: a provider is used only when the owner has enabled it, confirmed its commercial terms and its key/URL is set; the worker re-checks before every call. MOCK is refused in production.
+- AI never changes the score or tier: they come only from the rules. AI text is labelled "AI suggestion — not verified" and disqualified businesses are not sent to AI.
+- Phone numbers and emails are masked in prompts.
+- Gemini free tier: Google may use prompts and responses; the UI warns and recommends a paid (billing-enabled) project for customer data.
+
+### Known limits
+
+- Postcode verification checks the 6-digit format and the state prefix only, not that the PIN exists or matches the locality.
+- Manual overrides apply to the score on the next qualification run, not immediately.
+- A run resumed after a crash may repeat the AI call for the business that was in progress (one extra call, recorded).
+- The disposable-email domain list is small and not exhaustive.
+- An email is verified only with a mail-capable domain (MX) plus a second independent source or the business's own website domain; otherwise it stays unverified. City is not checked against the PIN (no offline PIN directory).
+
+### Cost
+
+Rs 0. Only the MOCK model was used; no paid API was called. AI token counts and cost are recorded per run (`aiCostMinor = 0` for MOCK).

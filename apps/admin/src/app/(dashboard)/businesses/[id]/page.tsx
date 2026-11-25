@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
+import { MANUAL_OVERRIDE_STATUSES, parseQualificationConfig } from "@kalpix/core";
 import { categoryLabel, OSM_ATTRIBUTION } from "@kalpix/providers";
 import { db } from "@/lib/db";
 import {
@@ -21,15 +22,32 @@ import {
   researchStatusLabel,
   sourceTypeLabel,
 } from "@/lib/research-display";
+import {
+  AI_STATUS_TONE,
+  aiProviderLabel,
+  disqualifiedLabel,
+  evidenceSummary,
+  methodLabel,
+  OPERATING_LABEL,
+  OPERATING_TONE,
+  parseAiRisks,
+  parseComponents,
+  parseReasons,
+  TIER_TONE,
+  tierLabel,
+  VERIFICATION_TONE,
+} from "@/lib/qualification-display";
 import { formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Flash } from "@/components/flash";
+import { Input, Label, Select } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
 import { requirePermission } from "@/server/session";
 import { startResearchRun } from "@/server/actions/research";
+import { clearOverride, overrideFact, startQualificationRun } from "@/server/actions/qualification";
 
 export const metadata = { title: "Business" };
 export const dynamic = "force-dynamic";
@@ -43,10 +61,27 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-const VERIFICATION_TONE: Record<string, "green" | "amber" | "neutral"> = {
-  verified: "green",
-  conflicting: "amber",
-  unverified: "neutral",
+function Bar({ label, value, max }: { label: string; value: number; max: number }) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="w-36 shrink-0 text-slate-600">{label}</span>
+      <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <span className="block h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="w-14 shrink-0 text-right tabular-nums text-slate-900">
+        {value}/{max}
+      </span>
+    </div>
+  );
+}
+
+const REASON_KIND_LABEL: Record<string, string> = {
+  opportunity: "Website",
+  contact: "Contact",
+  category: "Category",
+  disqualification: "Disqualified",
+  note: "Note",
 };
 
 export default async function BusinessDetailPage({
@@ -63,21 +98,68 @@ export default async function BusinessDetailPage({
   const b = await db.business.findUnique({ where: { id } });
   if (!b) notFound();
   const canResearch = can(session.user.role, "research:run");
-  const [latest, facts, activeResearch] = await Promise.all([
-    db.businessResearch.findFirst({
-      where: { businessId: id },
-      orderBy: { researchedAt: "desc" },
-    }),
-    db.researchFact.findMany({
-      where: { businessId: id },
-      orderBy: [{ field: "asc" }, { collectedAt: "desc" }],
-      take: 500,
-    }),
-    db.researchRun.findFirst({
-      where: { status: { in: ["queued", "running"] }, businessIds: { has: id } },
-      select: { id: true, status: true },
-    }),
-  ]);
+  const canQualify = can(session.user.role, "qualification:run");
+  const canVerify = can(session.user.role, "facts:verify");
+  const [latest, facts, activeResearch, qual, activeQualification, qualSetting] = await Promise.all(
+    [
+      db.businessResearch.findFirst({
+        where: { businessId: id },
+        orderBy: { researchedAt: "desc" },
+      }),
+      db.researchFact.findMany({
+        where: { businessId: id },
+        orderBy: [{ field: "asc" }, { collectedAt: "desc" }],
+        take: 500,
+      }),
+      db.researchRun.findFirst({
+        where: { status: { in: ["queued", "running"] }, businessIds: { has: id } },
+        select: { id: true, status: true },
+      }),
+      db.businessQualification.findFirst({
+        where: { businessId: id },
+        orderBy: { qualifiedAt: "desc" },
+        include: { run: { select: { id: true, aiProvider: true, startedByLabel: true } } },
+      }),
+      db.qualificationRun.findFirst({
+        where: { status: { in: ["queued", "running"] }, businessIds: { has: id } },
+        select: { id: true, status: true },
+      }),
+      db.systemSetting.findUnique({ where: { key: "qualification" } }),
+    ],
+  );
+  let qualConfig;
+  try {
+    qualConfig = parseQualificationConfig(qualSetting?.value ?? {});
+  } catch {
+    qualConfig = parseQualificationConfig({});
+  }
+  const factById = new Map(facts.map((f) => [f.id, f]));
+  const reasons = qual ? parseReasons(qual.reasons) : [];
+  const components = qual ? parseComponents(qual.components) : null;
+  const aiRisks = qual ? parseAiRisks(qual.aiRisks) : [];
+  const operatingHints = (() => {
+    const v = qual?.verification as { operatingHints?: unknown } | null | undefined;
+    return Array.isArray(v?.operatingHints)
+      ? (v.operatingHints as { detail?: unknown }[])
+          .map((h) => (typeof h?.detail === "string" ? h.detail : null))
+          .filter((x): x is string => !!x)
+      : [];
+  })();
+  const factLink = (fid: string) => {
+    const f = factById.get(fid);
+    if (!f) return null;
+    return (
+      <a
+        key={fid}
+        href={`#fact-${fid}`}
+        className="inline-flex max-w-[16rem] items-center gap-1 truncate rounded bg-slate-100 px-1.5 py-0.5 text-xs text-brand-700 hover:bg-brand-50"
+        title={`${fieldLabel(f.field)}: ${f.value}`}
+      >
+        {fieldLabel(f.field)}: {f.value.slice(0, 40)}
+      </a>
+    );
+  };
+  const returnTo = `/businesses/${id}`;
   const factGroups = groupFacts(facts);
   const conflictFields = factGroups
     .filter((g) => g.facts.some((f) => f.verificationStatus === "conflicting"))
@@ -121,6 +203,11 @@ export default async function BusinessDetailPage({
         actions={
           <div className="flex gap-2">
             {mock && <Badge tone="amber">MOCK</Badge>}
+            {b.latestTier && (
+              <Badge tone={TIER_TONE[b.latestTier] ?? "neutral"}>
+                {tierLabel(b.latestTier)} · {b.latestScore ?? "—"}
+              </Badge>
+            )}
             <Badge tone="neutral">{b.status}</Badge>
             <Badge tone={b.verificationStatus === "verified" ? "green" : "amber"}>
               {b.verificationStatus}
@@ -220,7 +307,232 @@ export default async function BusinessDetailPage({
         </Card>
       </div>
 
-      <Card className="mt-6">
+      <Card className="mt-6 scroll-mt-20" id="qualification">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Qualification</CardTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Rules-based score ({qual?.rulesVersion ?? "rules"}). Every reason links to the facts
+              it rests on.
+            </p>
+          </div>
+          {canQualify && (
+            <form action={startQualificationRun}>
+              <input type="hidden" name="idempotencyKey" value={randomUUID()} />
+              <input type="hidden" name="scope" value="businesses" />
+              <input type="hidden" name="businessIds" value={b.id} />
+              <input type="hidden" name="ai" value="none" />
+              <input type="hidden" name="returnTo" value={returnTo} />
+              <Button type="submit" variant="secondary" disabled={!!activeQualification}>
+                {activeQualification ? "Qualification queued" : "Qualify (rules only)"}
+              </Button>
+            </form>
+          )}
+        </CardHeader>
+        <CardContent>
+          {!qual || !components ? (
+            <p className="text-sm text-slate-500">
+              Not qualified yet.{" "}
+              {activeQualification
+                ? "A qualification run including this business is queued."
+                : canQualify
+                  ? "Use “Qualify” here or start a run in Leads."
+                  : ""}
+            </p>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-5">
+              <div className="flex flex-col gap-4 lg:col-span-2">
+                <div className="flex items-center gap-4">
+                  <span className="text-4xl font-semibold tabular-nums text-slate-900">
+                    {qual.score}
+                  </span>
+                  <div className="flex flex-col gap-1">
+                    <Badge tone={TIER_TONE[qual.tier] ?? "neutral"} className="w-fit">
+                      {tierLabel(qual.tier)}
+                    </Badge>
+                    <span className="text-xs text-slate-500">
+                      of 100 · {formatDateTime(qual.qualifiedAt)} IST
+                    </span>
+                  </div>
+                  {qual.isMock && <Badge tone="amber">MOCK</Badge>}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Bar
+                    label="Website opportunity"
+                    value={components.website}
+                    max={qualConfig.website.max}
+                  />
+                  <Bar
+                    label="Contactability"
+                    value={components.contact}
+                    max={qualConfig.contact.max}
+                  />
+                  <Bar
+                    label="Category fit"
+                    value={components.category}
+                    max={qualConfig.categoryMax}
+                  />
+                </div>
+                <dl className="divide-y divide-slate-100">
+                  {qual.disqualifiedReason && (
+                    <Row label="Disqualified">
+                      <span className="font-semibold text-red-700">
+                        {disqualifiedLabel(qual.disqualifiedReason)}
+                      </span>
+                      {qual.duplicateOfId && (
+                        <Link
+                          href={`/businesses/${qual.duplicateOfId}`}
+                          className="ml-2 text-brand-700 hover:underline"
+                        >
+                          Original record
+                        </Link>
+                      )}
+                    </Row>
+                  )}
+                  <Row label="Operating status">
+                    <Badge tone={OPERATING_TONE[qual.operatingStatus] ?? "neutral"}>
+                      {OPERATING_LABEL[qual.operatingStatus] ?? qual.operatingStatus}
+                    </Badge>
+                    {operatingHints.length > 0 && (
+                      <span className="mt-1 block text-xs text-slate-600">
+                        {operatingHints.join("; ")}
+                      </span>
+                    )}
+                  </Row>
+                </dl>
+              </div>
+              <div className="lg:col-span-3">
+                <h3 className="mb-2 text-sm font-semibold text-slate-800">Reasons</h3>
+                <ul className="flex flex-col gap-2">
+                  {reasons.map((r, i) => (
+                    <li
+                      key={`${r.code}-${i}`}
+                      className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-slate-800">
+                          <span className="mr-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            {REASON_KIND_LABEL[r.kind] ?? r.kind}
+                          </span>
+                          {r.text}
+                        </span>
+                        <span
+                          className={
+                            r.points > 0
+                              ? "shrink-0 font-semibold tabular-nums text-emerald-700"
+                              : "shrink-0 tabular-nums text-slate-400"
+                          }
+                        >
+                          {r.points > 0 ? `+${r.points}` : r.points}
+                        </span>
+                      </div>
+                      {(r.factIds.length > 0 || r.researchId) && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {r.factIds.map(factLink)}
+                          {r.researchId && (
+                            <a
+                              href="#research"
+                              className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-brand-700 hover:bg-brand-50"
+                            >
+                              Website research
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {qual && qual.aiStatus !== "off" && (
+        <Card className="mt-6 border-dashed" id="ai-suggestion">
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>AI suggestion — not verified</CardTitle>
+              <p className="mt-1 text-sm text-slate-500">
+                Generated text to help a person prepare. It does not change the score or tier and
+                may be wrong: check it against the facts before using it.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {qual.aiIsMock && <Badge tone="amber">MOCK</Badge>}
+              <Badge tone={AI_STATUS_TONE[qual.aiStatus] ?? "neutral"}>{qual.aiStatus}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-5 lg:grid-cols-3">
+            <div className="flex flex-col gap-3 text-sm lg:col-span-2">
+              {qual.aiIsMock && (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                  MOCK model output: fixture text for testing, not a model&apos;s judgement.
+                </p>
+              )}
+              {qual.aiStatus === "skipped" && (
+                <p className="text-slate-500">
+                  AI was skipped for this business (disqualified businesses are not sent to AI).
+                </p>
+              )}
+              {qual.aiStatus === "error" && (
+                <p className="text-red-700">AI step failed: {qual.aiError ?? "unknown error"}</p>
+              )}
+              {qual.aiSummary && (
+                <div>
+                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Summary
+                  </h3>
+                  <p className="text-slate-800">{qual.aiSummary}</p>
+                </div>
+              )}
+              {qual.aiPitch && (
+                <div>
+                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Pitch angle
+                  </h3>
+                  <p className="text-slate-800">{qual.aiPitch}</p>
+                </div>
+              )}
+              {aiRisks.length > 0 && (
+                <div>
+                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Risks
+                  </h3>
+                  <ul className="flex flex-col gap-1.5">
+                    {aiRisks.map((r, i) => (
+                      <li key={i} className="text-slate-800">
+                        <span className="mr-1.5 text-xs text-slate-500">{r.code}</span>
+                        {r.text}
+                        {r.factIds.length > 0 && (
+                          <span className="ml-1.5 inline-flex flex-wrap gap-1">
+                            {r.factIds.map(factLink)}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {qual.aiError && qual.aiStatus === "ok" && (
+                <p className="text-xs text-amber-800">{qual.aiError}</p>
+              )}
+            </div>
+            <dl className="divide-y divide-slate-100 self-start">
+              <Row label="Provider">{aiProviderLabel(qual.aiProvider ?? qual.run.aiProvider)}</Row>
+              <Row label="Model">{qual.aiModel}</Row>
+              <Row label="Prompt">{qual.aiPromptVersion}</Row>
+              <Row label="Tokens">
+                {qual.aiInputTokens != null
+                  ? `${qual.aiInputTokens} in / ${qual.aiOutputTokens ?? 0} out`
+                  : null}
+              </Row>
+            </dl>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="mt-6 scroll-mt-20" id="research">
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle>Research</CardTitle>
@@ -322,14 +634,14 @@ export default async function BusinessDetailPage({
 
           {factGroups.length > 0 && (
             <div className="-mx-5 border-t border-slate-100">
-              <Table className="min-w-[52rem]">
+              <Table className="min-w-[60rem]">
                 <THead>
                   <tr>
                     <TH className="w-40">Field</TH>
                     <TH>Value</TH>
                     <TH>Source</TH>
                     <TH className="px-2 text-right">Conf.</TH>
-                    <TH className="px-3">Status</TH>
+                    <TH className="px-3">Verification</TH>
                     <TH className="px-3">Collected (IST)</TH>
                   </tr>
                 </THead>
@@ -339,7 +651,17 @@ export default async function BusinessDetailPage({
                       const src = safeHttpUrl(f.sourceUrl);
                       const conflicting = f.verificationStatus === "conflicting";
                       return (
-                        <tr key={f.id} className={conflicting ? "bg-amber-50/70" : undefined}>
+                        <tr
+                          key={f.id}
+                          id={`fact-${f.id}`}
+                          className={`scroll-mt-20 target:bg-brand-50 ${
+                            conflicting
+                              ? "bg-amber-50/70"
+                              : f.verificationStatus === "invalid"
+                                ? "bg-red-50/60"
+                                : ""
+                          }`}
+                        >
                           {i === 0 && (
                             <TD
                               rowSpan={g.facts.length}
@@ -379,10 +701,90 @@ export default async function BusinessDetailPage({
                           <TD className="px-2 text-right align-top text-xs tabular-nums">
                             {formatConfidence(f.confidence)}
                           </TD>
-                          <TD className="px-3 align-top">
-                            <Badge tone={VERIFICATION_TONE[f.verificationStatus] ?? "neutral"}>
-                              {f.verificationStatus}
-                            </Badge>
+                          <TD className="max-w-[17rem] px-3 align-top text-xs">
+                            <span className="flex flex-wrap items-center gap-1">
+                              <Badge tone={VERIFICATION_TONE[f.verificationStatus] ?? "neutral"}>
+                                {f.verificationStatus}
+                              </Badge>
+                              {f.verificationOverride && (
+                                <Badge
+                                  tone="brand"
+                                  title={`Set by ${f.verifiedByLabel ?? "?"}${
+                                    f.verifiedAt ? ` on ${formatDateTime(f.verifiedAt)} IST` : ""
+                                  }: ${f.overrideReason ?? ""}`}
+                                >
+                                  Override
+                                </Badge>
+                              )}
+                            </span>
+                            {f.verificationOverride ? (
+                              <span className="mt-1 block text-slate-600">
+                                By {f.verifiedByLabel ?? "?"}
+                                {f.verifiedAt ? ` · ${formatDateTime(f.verifiedAt)}` : ""}
+                                <span className="block break-words italic text-slate-500">
+                                  “{f.overrideReason}”
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="mt-1 block text-slate-500">
+                                {methodLabel(f.verificationMethod)}
+                                {evidenceSummary(f.verificationEvidence) && (
+                                  <span className="block break-words text-slate-500">
+                                    {evidenceSummary(f.verificationEvidence)}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                            {canVerify && (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer font-semibold text-brand-700">
+                                  {f.verificationOverride ? "Change override" : "Override"}
+                                </summary>
+                                <form action={overrideFact} className="mt-2 flex flex-col gap-1.5">
+                                  <input type="hidden" name="factId" value={f.id} />
+                                  <input type="hidden" name="returnTo" value={returnTo} />
+                                  <Label htmlFor={`st-${f.id}`} className="text-xs">
+                                    Status
+                                  </Label>
+                                  <Select
+                                    id={`st-${f.id}`}
+                                    name="status"
+                                    defaultValue={f.verificationStatus}
+                                    className="h-8 text-xs"
+                                  >
+                                    {MANUAL_OVERRIDE_STATUSES.map((st) => (
+                                      <option key={st} value={st}>
+                                        {st}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                  <Label htmlFor={`rs-${f.id}`} className="text-xs">
+                                    Reason (required)
+                                  </Label>
+                                  <Input
+                                    id={`rs-${f.id}`}
+                                    name="reason"
+                                    required
+                                    minLength={3}
+                                    maxLength={500}
+                                    placeholder="e.g. Called the number, owner answered"
+                                    className="h-8 text-xs"
+                                  />
+                                  <Button type="submit" variant="secondary" className="h-8 w-fit">
+                                    Save override
+                                  </Button>
+                                </form>
+                                {f.verificationOverride && (
+                                  <form action={clearOverride} className="mt-1.5">
+                                    <input type="hidden" name="factId" value={f.id} />
+                                    <input type="hidden" name="returnTo" value={returnTo} />
+                                    <Button type="submit" variant="ghost" className="h-8 px-0">
+                                      Remove override
+                                    </Button>
+                                  </form>
+                                )}
+                              </details>
+                            )}
                           </TD>
                           <TD className="whitespace-nowrap px-3 align-top text-xs text-slate-600">
                             {formatDateTime(f.collectedAt)}
@@ -395,8 +797,11 @@ export default async function BusinessDetailPage({
               </Table>
               <p className="px-5 pt-3 text-xs text-slate-500">
                 Confidence reflects how reliable the extraction method is, not a verification.
-                “Conflicting” means sources disagree on this field; a person should check which
-                value is current.
+                Verification is set by the automatic checks in each qualification run (format,
+                independent sources, mail domain, website reachability) or by a person&apos;s
+                override, which the automatic checks never change. “Conflicting” means sources
+                disagree; “invalid” values are ignored by the score. Overrides affect the score on
+                the next qualification run.
               </p>
             </div>
           )}

@@ -10,24 +10,26 @@ datasource db {
 
 // ---------- Auth (Better Auth) ----------
 model User {
-  id               String         @id
-  name             String
-  email            String         @unique
-  emailVerified    Boolean        @default(false)
-  image            String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  twoFactorEnabled Boolean?       @default(false)
-  role             String?        @default("viewer")
-  banned           Boolean?       @default(false)
-  banReason        String?
-  banExpires       DateTime?
-  sessions         Session[]
-  accounts         Account[]
-  twoFactors       TwoFactor[]
-  auditLogs        AuditLog[]
-  discoveryRuns    DiscoveryRun[]
-  researchRuns     ResearchRun[]
+  id                String             @id
+  name              String
+  email             String             @unique
+  emailVerified     Boolean            @default(false)
+  image             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  twoFactorEnabled  Boolean?           @default(false)
+  role              String?            @default("viewer")
+  banned            Boolean?           @default(false)
+  banReason         String?
+  banExpires        DateTime?
+  sessions          Session[]
+  accounts          Account[]
+  twoFactors        TwoFactor[]
+  auditLogs         AuditLog[]
+  discoveryRuns     DiscoveryRun[]
+  researchRuns      ResearchRun[]
+  qualificationRuns QualificationRun[]
+  verifiedFacts     ResearchFact[]
 
   @@map("user")
 }
@@ -266,7 +268,7 @@ enum BusinessStatus {
 
 /// A discovered business with provenance (docs/ARCHITECTURE.md "Data provenance").
 model Business {
-  id                 String             @id @default(uuid())
+  id                 String                  @id @default(uuid())
   name               String
   normalizedName     String
   category           String // Kalpix industry id, e.g. "restaurants"
@@ -275,7 +277,7 @@ model Business {
   providerId         String // "node/123" for OSM
   osmType            String?
   osmId              String?
-  alternateIds       String[]           @default([]) // provider:id of records merged by fuzzy dedupe
+  alternateIds       String[]                @default([]) // provider:id of records merged by fuzzy dedupe
   // address
   houseNumber        String?
   street             String?
@@ -293,7 +295,7 @@ model Business {
   website            String?
   email              String?
   openingHours       String?
-  hasWebsite         Boolean            @default(false)
+  hasWebsite         Boolean                 @default(false)
   // provenance
   source             String // "openstreetmap" | "mock"
   sourceType         String // open_data | licensed_api | mock
@@ -301,18 +303,23 @@ model Business {
   collectedAt        DateTime
   lastSeenAt         DateTime
   confidence         Float // completeness heuristic 0..1, not a verification
-  verificationStatus String             @default("unverified")
+  verificationStatus String                  @default("unverified")
   license            String?
   usageRestrictions  String?
   rawTags            Json?
   firstRunId         String?
   lastRunId          String?
-  status             BusinessStatus     @default(NEW)
+  status             BusinessStatus          @default(NEW)
   lastResearchedAt   DateTime? // Phase 4: last website research of any outcome
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  // Phase 5: latest rules-based qualification (for listing); history in business_qualification
+  latestScore        Int?
+  latestTier         String? // hot | warm | cold | disqualified
+  qualifiedAt        DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
   researches         BusinessResearch[]
   facts              ResearchFact[]
+  qualifications     BusinessQualification[]
 
   @@unique([provider, providerId])
   @@index([category])
@@ -320,6 +327,7 @@ model Business {
   @@index([status])
   @@index([lat, lon])
   @@index([createdAt])
+  @@index([latestTier, latestScore])
   @@map("business")
 }
 
@@ -424,27 +432,140 @@ model BusinessResearch {
 /// One value about a business with full provenance. Listing values (OSM / discovery record) are
 /// stored as facts too (sourceType osm|listing) so every value has the same provenance shape.
 model ResearchFact {
-  id                 String   @id @default(uuid())
-  businessId         String
-  business           Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  field              String // ResearchField: phone, email, social_facebook, opening_hours ...
-  value              String // as found, <= 1000 chars
-  normalizedValue    String // comparison key, <= 400 chars
+  id                   String    @id @default(uuid())
+  businessId           String
+  business             Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  field                String // ResearchField: phone, email, social_facebook, opening_hours ...
+  value                String // as found, <= 1000 chars
+  normalizedValue      String // comparison key, <= 400 chars
   // provenance
-  sourceUrl          String // <= 500 chars
-  sourceType         String // jsonld | microdata | meta | html | header | robots | osm | listing | mock
-  provider           String // provider that produced it: http-extractor | osm-overpass | ...
-  collectedAt        DateTime // latest time this value was seen at sourceUrl
-  confidence         Float // extraction-method reliability 0..1, NOT a verification
-  verificationStatus String   @default("unverified") // unverified | verified | conflicting
-  usageRestriction   String?
-  firstRunId         String?
-  lastRunId          String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  sourceUrl            String // <= 500 chars
+  sourceType           String // jsonld | microdata | meta | html | header | robots | osm | listing | mock
+  provider             String // provider that produced it: http-extractor | osm-overpass | ...
+  collectedAt          DateTime // latest time this value was seen at sourceUrl
+  confidence           Float // extraction-method reliability 0..1, NOT a verification
+  verificationStatus   String    @default("unverified") // unverified | verified | conflicting | invalid
+  usageRestriction     String?
+  firstRunId           String?
+  lastRunId            String?
+  // Phase 5 verification: how and when the status was set, with evidence
+  verifiedAt           DateTime? // last time the status was (re)assessed, automatically or by a person
+  verificationMethod   String? // phone_format_agreement | email_syntax_mx | website_reachability | postcode_format_state | conflict_check | manual
+  verificationEvidence Json?
+  verificationOverride Boolean   @default(false) // set by a person: the automatic pass leaves it alone
+  verifiedById         String?
+  verifiedBy           User?     @relation(fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedByLabel      String? // email or "system"; survives user deletion
+  overrideReason       String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@unique([businessId, field, normalizedValue, sourceUrl])
   @@index([businessId, field])
   @@index([field, verificationStatus])
   @@map("research_fact")
+}
+
+// ---------- Phase 5: verification and qualification ----------
+
+enum QualificationRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+/// One verification + qualification job; also the worker's queue (job type "qualification", same
+/// claim mechanism as research_run). Per business: verify facts, score with rules, optional AI.
+model QualificationRun {
+  id                 String                  @id @default(uuid())
+  status             QualificationRunStatus  @default(queued)
+  idempotencyKey     String?                 @unique
+  scopeType          String // businesses | discovery_run | research_run | filter
+  businessIds        String[]                @default([])
+  discoveryRunId     String?
+  researchRunId      String?
+  filter             Json?
+  targetIds          String[]                @default([])
+  resolvedAt         DateTime?
+  // AI step (optional): provider descriptor id or null when rules-only
+  aiEnabled          Boolean                 @default(false)
+  aiProvider         String? // mock-model | ollama | gemini
+  promptVersion      String?
+  rulesVersion       String
+  // progress + counts (progress itself = business_qualification rows for this run)
+  totalCount         Int                     @default(0)
+  processedCount     Int                     @default(0)
+  hotCount           Int                     @default(0)
+  warmCount          Int                     @default(0)
+  coldCount          Int                     @default(0)
+  disqualifiedCount  Int                     @default(0)
+  errorCount         Int                     @default(0)
+  factsCheckedCount  Int                     @default(0)
+  factsVerifiedCount Int                     @default(0)
+  factsInvalidCount  Int                     @default(0)
+  dnsLookupCount     Int                     @default(0)
+  aiOkCount          Int                     @default(0)
+  aiErrorCount       Int                     @default(0)
+  aiInputTokens      Int                     @default(0)
+  aiOutputTokens     Int                     @default(0)
+  aiCostMinor        Int                     @default(0)
+  attempts           Int                     @default(0)
+  error              String?
+  errors             Json?
+  startedById        String?
+  startedBy          User?                   @relation(fields: [startedById], references: [id], onDelete: SetNull)
+  startedByLabel     String
+  lockedBy           String?
+  lockedAt           DateTime?
+  createdAt          DateTime                @default(now())
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  updatedAt          DateTime                @updatedAt
+  results            BusinessQualification[]
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("qualification_run")
+}
+
+/// Qualification of one business in one run. score/tier come only from the rules; AI suggestions
+/// (summary, pitch, risks) are stored beside them and never change the score.
+model BusinessQualification {
+  id                 String           @id @default(uuid())
+  runId              String
+  run                QualificationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  businessId         String
+  business           Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  rulesVersion       String
+  score              Int // 0..100
+  tier               String // hot | warm | cold | disqualified
+  components         Json // {website, contact, category}
+  reasons            Json // [{code, kind, points, text, factIds[], researchId?}]
+  disqualifiedReason String? // closed | no_contact_channel | duplicate | blocked_category
+  duplicateOfId      String?
+  operatingStatus    String // closed | possibly_closed | no_evidence
+  verification       Json // summary counts of the verification pass
+  researchId         String? // business_research the website reasons rest on
+  isMock             Boolean          @default(false)
+  // optional AI suggestions (null when AI was off, skipped or failed)
+  aiStatus           String           @default("off") // off | skipped | ok | error
+  aiSummary          String?
+  aiPitch            String?
+  aiRisks            Json?
+  aiError            String?
+  aiProvider         String?
+  aiModel            String?
+  aiPromptVersion    String?
+  aiInputTokens      Int?
+  aiOutputTokens     Int?
+  aiCostMinor        Int?
+  aiIsMock           Boolean          @default(false)
+  qualifiedAt        DateTime         @default(now())
+
+  @@unique([runId, businessId])
+  @@index([businessId, qualifiedAt])
+  @@index([tier, score])
+  @@map("business_qualification")
 }

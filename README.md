@@ -30,11 +30,11 @@ pnpm db:deploy                # apply migrations
 pnpm db:seed                  # providers (disabled), settings, DEMO packages, first owner
 pnpm dev                      # admin at http://localhost:3000, sign in, then enable MFA
 pnpm build && pnpm start      # production build; in another terminal: pnpm e2e
-pnpm worker                   # discovery + research worker: polls both queues (WORKER_POLL_INTERVAL_MS)
+pnpm worker                   # discovery + research + qualification worker: polls the queues (WORKER_POLL_INTERVAL_MS)
 pnpm worker:once              # drain the queue once and exit (CI, cron)
 ```
 
-For offline testing run the app with `DISCOVERY_PROVIDER=mock RESEARCH_PROVIDER=mock pnpm start` (MOCK data, refused in production); `pnpm -F @kalpix/admin e2e:research` runs only the research e2e. Worker integration tests: `pnpm -F @kalpix/worker test:integration` (needs PostgreSQL).
+For offline testing run the app with `DISCOVERY_PROVIDER=mock RESEARCH_PROVIDER=mock QUALIFICATION_AI_PROVIDER=mock pnpm start` (MOCK data and MOCK model, refused in production); `pnpm -F @kalpix/admin e2e:research` / `e2e:qualification` run one e2e suite. Worker integration tests: `pnpm -F @kalpix/worker test:integration` (needs PostgreSQL).
 
 ### Discovery environment variables (Phase 3)
 
@@ -61,6 +61,20 @@ Overpass and Nominatim must also be enabled and marked commercial-use verified b
 | `RESEARCH_USER_AGENT_CONTACT` | (empty) | Email or URL in the KalpixBot User-Agent; required before real runs and in production   |
 
 The HTTP extractor (`http-extractor`) is seeded disabled: the owner enables it in AI Provider Settings. Run a single worker (rate limits and the robots cache are in-process). Sites that render only with JavaScript yield few facts.
+
+### Verification and qualification environment variables (Phase 5)
+
+| Variable                       | Default            | Purpose                                                                                       |
+| ------------------------------ | ------------------ | --------------------------------------------------------------------------------------------- |
+| `QUALIFICATION_AI_PROVIDER`    | `none`             | `none` (rules only), `mock` (not in production), `ollama` or `gemini`; AI never changes score |
+| `QUALIFICATION_PROMPT_VERSION` | `qual-v1`          | Stored with every AI result                                                                   |
+| `VERIFICATION_DNS_TIMEOUT_MS`  | `3000`             | MX lookup timeout for email verification (200-30000)                                          |
+| `OLLAMA_BASE_URL`              | (empty)            | Local Ollama server; required when the AI provider is `ollama`                                |
+| `OLLAMA_MODEL`                 | `llama3.2:3b`      | Ollama model; check its licence                                                               |
+| `GEMINI_API_KEY`               | (empty)            | Server-only; required when the AI provider is `gemini`. Free tier: Google may use prompts     |
+| `GEMINI_MODEL`                 | `gemini-2.5-flash` | Gemini model                                                                                  |
+
+Ollama and Gemini must also be enabled and have their commercial terms confirmed by the owner in AI Provider Settings; an explicitly chosen provider that is not ready is refused (409). Phone numbers and emails are masked before any AI call.
 
 ## Repository layout
 

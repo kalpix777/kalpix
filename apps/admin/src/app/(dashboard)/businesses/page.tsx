@@ -3,7 +3,13 @@ import { KALPIX_CATEGORIES } from "@kalpix/core";
 import { categoryLabel, OSM_ATTRIBUTION } from "@kalpix/providers";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
-import { businessWhere, filtersToQuery, parseBusinessFilters } from "@/lib/business-filters";
+import {
+  businessOrderBy,
+  businessWhere,
+  filtersToQuery,
+  parseBusinessFilters,
+} from "@/lib/business-filters";
+import { TIER_TONE, tierLabel, TIERS } from "@/lib/qualification-display";
 import {
   formatConfidence,
   isMockSource,
@@ -47,7 +53,7 @@ export default async function BusinessesPage({
   const [rows, total, runs] = await Promise.all([
     db.business.findMany({
       where,
-      orderBy: [{ lastSeenAt: "desc" }, { name: "asc" }],
+      orderBy: businessOrderBy(filters),
       take: PAGE,
       skip: (p - 1) * PAGE,
       include: {
@@ -105,7 +111,7 @@ export default async function BusinessesPage({
         }
       />
 
-      <form className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-7">
+      <form className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-9">
         <div className="flex flex-col gap-1.5 lg:col-span-2">
           <Label htmlFor="q">Search</Label>
           <Input
@@ -164,7 +170,26 @@ export default async function BusinessesPage({
             <option value="conflicts">Has conflicts</option>
           </Select>
         </div>
-        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-7">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="tier">Tier</Label>
+          <Select id="tier" name="tier" defaultValue={filters.tier}>
+            <option value="">Any</option>
+            {TIERS.map((t) => (
+              <option key={t} value={t}>
+                {tierLabel(t)}
+              </option>
+            ))}
+            <option value="unqualified">Not qualified</option>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="sort">Sort</Label>
+          <Select id="sort" name="sort" defaultValue={filters.sort}>
+            <option value="">Last seen</option>
+            <option value="score">Score</option>
+          </Select>
+        </div>
+        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-9">
           <Button type="submit" variant="secondary">
             Apply filters
           </Button>
@@ -204,7 +229,17 @@ export default async function BusinessesPage({
                 <TH>Location</TH>
                 <TH>Phone</TH>
                 <TH>Website</TH>
-                <TH className="text-right">Confidence</TH>
+                <TH className="text-right">Conf.</TH>
+                <TH className="text-right">
+                  <Link
+                    href={`/businesses${filtersToQuery(filters, { sort: filters.sort === "score" ? "" : "score", page: "" })}`}
+                    className="hover:text-brand-700"
+                    title="Sort by score"
+                  >
+                    Score{filters.sort === "score" ? " ↓" : ""}
+                  </Link>
+                </TH>
+                <TH>Tier</TH>
                 <TH>Research</TH>
                 <TH>Source</TH>
               </tr>
@@ -234,7 +269,7 @@ export default async function BusinessesPage({
                       {[b.locality, b.city].filter(Boolean).join(", ") || "—"}
                     </TD>
                     <TD className="whitespace-nowrap text-xs">{b.phone ?? "—"}</TD>
-                    <TD className="max-w-[12rem] truncate text-xs">
+                    <TD className="max-w-[10rem] truncate text-xs">
                       {site ? (
                         <a
                           href={site}
@@ -250,6 +285,18 @@ export default async function BusinessesPage({
                     </TD>
                     <TD className="text-right tabular-nums text-xs">
                       {formatConfidence(b.confidence)}
+                    </TD>
+                    <TD className="text-right text-sm font-semibold tabular-nums text-slate-900">
+                      {b.latestScore ?? <span className="font-normal text-slate-400">—</span>}
+                    </TD>
+                    <TD className="text-xs">
+                      {b.latestTier ? (
+                        <Badge tone={TIER_TONE[b.latestTier] ?? "neutral"}>
+                          {tierLabel(b.latestTier)}
+                        </Badge>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </TD>
                     <TD className="text-xs">
                       {last ? (

@@ -269,6 +269,7 @@ export interface BusinessListFilters {
   q?: string;
   run?: string;
   research?: string;
+  tier?: string;
 }
 
 /**
@@ -297,6 +298,7 @@ export function researchLinkForBusinessFilters(f: BusinessListFilters): {
   }
   if (f.q) dropped.push("search");
   if (f.phone) dropped.push("phone");
+  if (f.tier) dropped.push("tier");
   if (f.research && !(f.research === "never" && !f.run)) dropped.push("research status");
   return { href: `/research?${p.toString()}`, dropped };
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { businessWhere, filtersToQuery, parseBusinessFilters } from "./business-filters";
+import {
+  businessOrderBy,
+  businessWhere,
+  filtersToQuery,
+  parseBusinessFilters,
+} from "./business-filters";
 
 describe("business filters", () => {
   it("drops unknown or unsafe values", () => {
@@ -11,8 +16,19 @@ describe("business filters", () => {
         run: "x'; drop",
         q: " cafe ",
         research: "maybe",
+        tier: "lukewarm",
+        sort: "name; drop",
       }),
-    ).toEqual({ category: "", website: "", phone: "", q: "cafe", run: "", research: "" });
+    ).toEqual({
+      category: "",
+      website: "",
+      phone: "",
+      q: "cafe",
+      run: "",
+      research: "",
+      tier: "",
+      sort: "",
+    });
   });
   it("builds a Prisma where for category, website and search", () => {
     const f = parseBusinessFilters({ category: "restaurants", website: "no", q: "udupi" });
@@ -42,6 +58,20 @@ describe("business filters", () => {
     expect(businessWhere(parseBusinessFilters({ research: "conflicts" })).AND).toEqual([
       { facts: { some: { verificationStatus: "conflicting" } } },
     ]);
+  });
+  it("filters on qualification tier, including never qualified", () => {
+    expect(businessWhere(parseBusinessFilters({ tier: "hot" })).AND).toEqual([
+      { latestTier: "hot" },
+    ]);
+    expect(businessWhere(parseBusinessFilters({ tier: "unqualified" })).AND).toEqual([
+      { latestTier: null },
+    ]);
+  });
+  it("sorts by score with unqualified last, else by last seen", () => {
+    expect(businessOrderBy(parseBusinessFilters({ sort: "score" }))[0]).toEqual({
+      latestScore: { sort: "desc", nulls: "last" },
+    });
+    expect(businessOrderBy(parseBusinessFilters({}))[0]).toEqual({ lastSeenAt: "desc" });
   });
   it("round-trips filters into a query string", () => {
     expect(filtersToQuery({ category: "hotels", website: "", q: "a b" }, { page: "2" })).toBe(

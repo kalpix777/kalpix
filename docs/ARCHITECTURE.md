@@ -30,7 +30,7 @@ Every researched fact is stored with source URL, collected-at, source type, conf
 
 ## Job queue
 
-`apps/worker` processes two job types from PostgreSQL tables with the same mechanism (claim with `FOR UPDATE SKIP LOCKED`, stale-lock recovery after 10 minutes, max 5 attempts, progress committed per unit so a crashed run resumes): `discovery_run` (one unit = one category) and `research_run` (one unit = one business). No Redis.
+`apps/worker` processes three job types from PostgreSQL tables with the same mechanism (claim with `FOR UPDATE SKIP LOCKED`, stale-lock recovery after 10 minutes, max 5 attempts, progress committed per unit so a crashed run resumes): `discovery_run` (one unit = one category), `research_run` (one unit = one business) and `qualification_run` (one unit = one business: verification, rules score, optional AI). No Redis.
 
 ## Human-in-the-loop
 
