@@ -6,8 +6,8 @@
 | 2   | Core app, database, admin dashboard   | Approved                                  |
 | 3   | Business discovery engine             | Approved                                  |
 | 4   | Business research and extraction      | Approved                                  |
-| 5   | Verification and AI qualification     | Built and tested; awaiting approval       |
-| 6   | CRM and lead management               | Not started                               |
+| 5   | Verification and AI qualification     | Approved                                  |
+| 6   | CRM and lead management               | Built and tested; awaiting approval       |
 | 7   | AI website planning                   | Not started                               |
 | 8   | AI website generation                 | Not started                               |
 | 9   | Website testing and QA                | Not started                               |

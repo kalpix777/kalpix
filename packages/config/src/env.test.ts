@@ -187,4 +187,24 @@ describe("loadEnv", () => {
       }),
     ).toThrow(/QUALIFICATION_AI_PROVIDER=mock is not allowed in production/);
   });
+
+  it("applies Phase 6 CRM defaults", () => {
+    const env = loadEnv({ ...base, CRM_STALE_DAYS: "", CRM_PROMOTE_TIERS: " " });
+    expect(env.CRM_STALE_DAYS).toBe(14);
+    expect(env.CRM_PROMOTE_TIERS).toEqual(["hot", "warm"]);
+    expect(loadEnv(base).CRM_PROMOTE_TIERS).toEqual(["hot", "warm"]);
+  });
+
+  it("parses and validates Phase 6 CRM settings", () => {
+    const env = loadEnv({ ...base, CRM_STALE_DAYS: "30", CRM_PROMOTE_TIERS: "Hot, warm,COLD,hot" });
+    expect(env.CRM_STALE_DAYS).toBe(30);
+    expect(env.CRM_PROMOTE_TIERS).toEqual(["hot", "warm", "cold"]);
+    expect(() => loadEnv({ ...base, CRM_STALE_DAYS: "0" })).toThrow(/CRM_STALE_DAYS/);
+    expect(() => loadEnv({ ...base, CRM_STALE_DAYS: "400" })).toThrow(/CRM_STALE_DAYS/);
+    expect(() => loadEnv({ ...base, CRM_STALE_DAYS: "2.5" })).toThrow(/CRM_STALE_DAYS/);
+    expect(() => loadEnv({ ...base, CRM_PROMOTE_TIERS: "hot,disqualified" })).toThrow(
+      /CRM_PROMOTE_TIERS/,
+    );
+    expect(() => loadEnv({ ...base, CRM_PROMOTE_TIERS: "," })).toThrow(/CRM_PROMOTE_TIERS/);
+  });
 });

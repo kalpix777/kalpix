@@ -14,6 +14,12 @@ export const PERMISSIONS = [
   "qualification:run",
   "facts:verify",
   "businesses:export",
+  "crm:read",
+  "crm:write",
+  "crm:reopen",
+  "crm:dnc_clear",
+  "crm:import",
+  "crm:export",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -32,6 +38,12 @@ const MATRIX: Record<Role, readonly Permission[]> = {
     "qualification:run",
     "facts:verify",
     "businesses:export",
+    "crm:read",
+    "crm:write",
+    "crm:reopen",
+    "crm:dnc_clear",
+    "crm:import",
+    "crm:export",
   ],
   operator: [
     "dashboard:read",
@@ -40,8 +52,10 @@ const MATRIX: Record<Role, readonly Permission[]> = {
     "research:run",
     "qualification:run",
     "facts:verify",
+    "crm:read",
+    "crm:write",
   ],
-  viewer: ["dashboard:read"],
+  viewer: ["dashboard:read", "crm:read"],
 };
 
 export function toRole(value: string | null | undefined): Role {

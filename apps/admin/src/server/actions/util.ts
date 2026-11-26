@@ -6,12 +6,12 @@ import { ZodError } from "zod";
 export async function runAction(
   path: string,
   okMessage: string,
-  fn: () => Promise<void>,
+  fn: () => Promise<void | string>,
 ): Promise<never> {
   let target: string;
   try {
-    await fn();
-    target = `${path}?ok=${encodeURIComponent(okMessage)}`;
+    const msg = await fn();
+    target = `${path}?ok=${encodeURIComponent(typeof msg === "string" && msg ? msg : okMessage)}`;
   } catch (err) {
     const msg =
       err instanceof ZodError

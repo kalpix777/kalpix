@@ -76,6 +76,15 @@ The HTTP extractor (`http-extractor`) is seeded disabled: the owner enables it i
 
 Ollama and Gemini must also be enabled and have their commercial terms confirmed by the owner in AI Provider Settings; an explicitly chosen provider that is not ready is refused (409). Phone numbers and emails are masked before any AI call.
 
+### CRM environment variables (Phase 6)
+
+| Variable            | Default    | Purpose                                                                                            |
+| ------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| `CRM_STALE_DAYS`    | `14`       | An open lead with no activity for this many days is shown as stale (1-365)                         |
+| `CRM_PROMOTE_TIERS` | `hot,warm` | Qualification tiers promoted to CRM leads by default (`hot`, `warm`, `cold`; never `disqualified`) |
+
+The CRM (`/crm`) never sends messages: WhatsApp and email arrive in Phases 11-12. Do-not-contact is recorded on the business and blocks outreach stages and export of its phone and email. `pnpm -F @kalpix/admin e2e:crm` runs the CRM e2e suite.
+
 ## Repository layout
 
 ```

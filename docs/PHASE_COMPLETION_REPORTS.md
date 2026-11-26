@@ -159,7 +159,7 @@ Rs 0. No paid API; website fetches are recorded as `usage_event` with `costMinor
 
 ## Phase 5: Verification and AI qualification
 
-**Status: built and tested in the build environment against a real PostgreSQL 17 server, the MOCK discovery/research providers and the MOCK model. Ollama and Gemini were never called live. Awaiting owner review and approval. Phase 6 not started.**
+**Status: built and tested in the build environment against a real PostgreSQL 17 server, the MOCK discovery/research providers and the MOCK model. Ollama and Gemini were never called live. Approved by the owner on 2026-11-26 (Phase 6 started).**
 
 ### Delivered
 
@@ -208,3 +208,56 @@ Rs 0. No paid API; website fetches are recorded as `usage_event` with `costMinor
 ### Cost
 
 Rs 0. Only the MOCK model was used; no paid API was called. AI token counts and cost are recorded per run (`aiCostMinor = 0` for MOCK).
+
+## Phase 6: CRM and lead management
+
+**Status: built and tested in the build environment against a real PostgreSQL 17 server with MOCK data only. No message of any kind is sent: there is no outbound WhatsApp, email or SMS until Phases 11-12. Awaiting owner approval.**
+
+### Delivered
+
+- Migration `20261126000000_phase6_crm`: `lead` (one per business, stage, assignee, priority, value estimate in paise, next follow-up, `version` for optimistic concurrency), append-only `lead_stage_history`, `lead_activity` (notes editable by their author for 15 minutes, enforced by a trigger too), `lead_task`, `lead_contact` (one primary, optional link to a research fact), `lead_tag` / `lead_tag_link`, and consent columns on `business` (`contactStatus` ok / do_not_contact / opted_out with reason, actor and time; `lawfulBasisNote`).
+- `packages/core/src/crm.ts`: stage matrix and rules (lost needs a reason; won/lost reopen to nurture or contacted by admin+ only; do-not-contact blocks every outreach stage), follow-up / task overdue, health (active / stale / closed), tags, promotion planning, round-robin, CSV parsing and import validation, list filters.
+- `apps/worker/src/crm-promote.ts`: idempotent promotion of qualified businesses (default tiers from `CRM_PROMOTE_TIERS`, never disqualified or do-not-contact) with a primary contact from the best research facts and optional round-robin to operators.
+- Admin services `apps/admin/src/server/crm.ts`, 16 JSON routes under `/api/crm`, no-JS server actions (`src/server/actions/crm.ts`). RBAC: `crm:read` (viewer+), `crm:write` (operator+), `crm:reopen`, `crm:dnc_clear`, `crm:import`, `crm:export` (admin+). Audit: `crm.lead_promote`, `crm.lead_create`, `crm.stage_change`, `crm.assign`, `crm.dnc_set`, `crm.dnc_clear`, `crm.lead_import`, `crm.export`.
+- **CRM** page (`/crm`, in the sidebar): pipeline counts per stage (click to filter), overdue / stale / do-not-contact counts, lead table (business, stage, tier and score, assignee, priority, next follow-up with Overdue flag and open/overdue tasks, value in INR, tags, Stale and DNC badges), filters (search, stage, assignee incl. me / unassigned, tier, tag, overdue), 50 per page, filtered CSV export (admin+), CSV import with a dry-run preview before importing (admin+). Viewers read only.
+- **Lead detail** (`/crm/leads/[id]`): stage control limited to the allowed next stages (lost reason, admin-only reopen), assignee, priority, value estimate (rupees in, paise stored), next follow-up (IST); every change carries the lead's version and a stale form shows "changed by someone else, reload". Timeline with note / logged call / logged meeting and edit-own-note within 15 minutes; tasks (add, done, cancel, overdue); contacts (add, edit, make primary, remove); tags; do-not-contact set (reason + lawful-basis note, operator+) and clear (admin+) with a visible banner; channels hidden while do-not-contact. Links to the business and back.
+- **Promote to CRM** on `/leads` (tiers hot + warm by default, cold optional, optional round-robin, result counts shown), an **Add to CRM** button per ranked lead, and a CRM strip on business detail (stage, assignee, "Open lead in CRM" or "Add to CRM").
+- E2E: `apps/admin/e2e/crm.mjs` (`pnpm -F @kalpix/admin e2e:crm`, part of `pnpm e2e` and CI): API checks plus UI checks (pages render, viewer sees no forms, form stage change with its audit row, stale form 409 banner, lost-without-reason refused, promote form, Add to CRM from a business, DNC banner and admin-only clear). CI pins `CRM_STALE_DAYS=14` and `CRM_PROMOTE_TIERS=hot,warm`.
+- Env: `CRM_STALE_DAYS` (default 14), `CRM_PROMOTE_TIERS` (default hot,warm).
+
+### Acceptance criteria
+
+| Criterion                                                                                  | Status                                          |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| Typecheck, lint, format                                                                    | PASS                                            |
+| Unit tests (`pnpm verify`)                                                                 | PASS (263/263)                                  |
+| Worker integration tests (real PostgreSQL)                                                 | PASS (29/29)                                    |
+| Production build                                                                           | PASS                                            |
+| E2E smoke / MFA / discovery / research / qualification / CRM (`pnpm start`)                | PASS (29/29, 6/6, 30/30, 33/33, 48/48, 100/100) |
+| Promotion idempotent; never disqualified or do-not-contact                                 | PASS (e2e + integration)                        |
+| Stage rules (lost reason, admin-only reopen, DNC blocks outreach)                          | PASS (unit + e2e)                               |
+| Optimistic concurrency: stale version is 409 (API) and a clear reload message (UI)         | PASS (e2e)                                      |
+| RBAC: viewer read-only with no forms; export/import/DNC clear admin+                       | PASS (e2e)                                      |
+| CSV export respects filters, is formula-safe, blanks DNC channels; import dry run + dedupe | PASS (e2e)                                      |
+| Pages fit 1440 px; screenshots with MOCK data                                              | PASS                                            |
+| Runs on owner's machine; CI green on GitHub                                                | PENDING / see CI run for the Phase 6 commit     |
+
+### Decisions
+
+- **Do-not-contact lives on the business**, not the lead, so it also blocks future outreach to that business outside the CRM and survives a lead being deleted. Clearing it needs admin+ and a reason; both directions are audited.
+- **The admin app depends on `@kalpix/worker`** (the `@kalpix/worker/crm-promote` export) so promotion runs the same code from the API and from future worker jobs.
+- **CSV import needs lat/lon for new businesses**: business coordinates are required and Kalpix never bulk-geocodes; rows matching an existing business (phone, or name + PIN code) need no coordinates.
+- **Round-robin race**: the cursor in `system_setting` `crm.round_robin` is read and written without a lock, so two promotions at the same moment may give two leads to the same operator. Acceptable for a small team; no lead is lost or duplicated (unique `businessId`).
+- **Health is computed on read** (from `lastActivityAt` and `CRM_STALE_DAYS`), not stored, so changing the setting takes effect at once.
+- **Approval-request table deferred**: the roadmap's approval requests belong with outreach (Phases 11-12), where there is something to approve.
+- **No outbound messaging** until Phases 11-12: the CRM records calls and meetings that people made themselves.
+
+### Known limits
+
+- Follow-up and task times are entered in IST (the forms assume UTC+05:30).
+- The timeline shows the latest 200 entries per lead.
+- CSV export is capped at 50,000 rows and import at 1,000 rows / 2 MB per file.
+
+### Cost
+
+Rs 0. No paid API or service was used.

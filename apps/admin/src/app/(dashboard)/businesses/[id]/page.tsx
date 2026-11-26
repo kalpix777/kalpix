@@ -48,6 +48,8 @@ import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
 import { requirePermission } from "@/server/session";
 import { startResearchRun } from "@/server/actions/research";
 import { clearOverride, overrideFact, startQualificationRun } from "@/server/actions/qualification";
+import { createManualLeadAction } from "@/server/actions/crm";
+import { STAGE_TONE, stageLabel } from "@/lib/crm-display";
 
 export const metadata = { title: "Business" };
 export const dynamic = "force-dynamic";
@@ -100,6 +102,18 @@ export default async function BusinessDetailPage({
   const canResearch = can(session.user.role, "research:run");
   const canQualify = can(session.user.role, "qualification:run");
   const canVerify = can(session.user.role, "facts:verify");
+  const canCrmRead = can(session.user.role, "crm:read");
+  const canCrmWrite = can(session.user.role, "crm:write");
+  const crmLead = canCrmRead
+    ? await db.lead.findUnique({
+        where: { businessId: id },
+        select: {
+          id: true,
+          stage: true,
+          assignee: { select: { name: true, email: true } },
+        },
+      })
+    : null;
   const [latest, facts, activeResearch, qual, activeQualification, qualSetting] = await Promise.all(
     [
       db.businessResearch.findFirst({
@@ -223,6 +237,49 @@ export default async function BusinessDetailPage({
         >
           MOCK record from the test provider. This is not a real business.
         </p>
+      )}
+
+      {canCrmRead && (
+        <Card className="mb-6" id="crm">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-semibold text-slate-900">CRM</span>
+              {crmLead ? (
+                <>
+                  <Badge tone={STAGE_TONE[crmLead.stage]}>{stageLabel(crmLead.stage)}</Badge>
+                  <span className="text-slate-500">
+                    {crmLead.assignee
+                      ? `Assigned to ${crmLead.assignee.name || crmLead.assignee.email}`
+                      : "Unassigned"}
+                  </span>
+                </>
+              ) : (
+                <span className="text-slate-500">Not a lead yet.</span>
+              )}
+              {b.contactStatus !== "ok" && <Badge tone="red">Do not contact</Badge>}
+            </div>
+            {crmLead ? (
+              <Link
+                href={`/crm/leads/${crmLead.id}`}
+                className="text-sm font-semibold text-brand-700"
+              >
+                Open lead in CRM →
+              </Link>
+            ) : canCrmWrite && b.latestTier !== "disqualified" && b.contactStatus === "ok" ? (
+              <form action={createManualLeadAction}>
+                <input type="hidden" name="businessId" value={b.id} />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <Button type="submit" variant="secondary" className="h-8">
+                  Add to CRM
+                </Button>
+              </form>
+            ) : b.latestTier === "disqualified" ? (
+              <span className="text-xs text-slate-500">
+                Disqualified businesses cannot be leads.
+              </span>
+            ) : null}
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">

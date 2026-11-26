@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./crm-promote": "./src/crm-promote.ts"
+  },
   "scripts": {
     "start": "dotenv -e ../../.env -- tsx src/index.ts",
     "once": "dotenv -e ../../.env -- tsx src/index.ts --once",

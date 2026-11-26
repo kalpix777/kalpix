@@ -19,6 +19,9 @@ export const RESEARCH_PROVIDERS = ["http", "mock"] as const;
 /** QUALIFICATION_AI_PROVIDER values (Phase 5). "none" = rules-only qualification. */
 export const QUALIFICATION_AI_PROVIDERS = ["none", "mock", "ollama", "gemini"] as const;
 
+/** Tiers CRM_PROMOTE_TIERS may name (Phase 6). "disqualified" is never promotable. */
+export const CRM_PROMOTABLE_TIERS = ["hot", "warm", "cold"] as const;
+
 /** Unset or empty means "use the default". */
 const blankToUndefined = (v: unknown) =>
   typeof v === "string" && v.trim().length === 0 ? undefined : v;
@@ -127,6 +130,37 @@ export const envSchema = z
         .optional(),
     ),
     OLLAMA_MODEL: z.preprocess(blankToUndefined, z.string().trim().max(120).optional()),
+    // --- Phase 6: CRM ---
+    CRM_STALE_DAYS: z.preprocess(
+      blankToUndefined,
+      z.coerce
+        .number()
+        .int("CRM_STALE_DAYS must be a whole number of days")
+        .min(1)
+        .max(365)
+        .default(14),
+    ),
+    CRM_PROMOTE_TIERS: z.preprocess(
+      (v) =>
+        typeof blankToUndefined(v) === "string"
+          ? [
+              ...new Set(
+                String(v)
+                  .split(",")
+                  .map((t) => t.trim().toLowerCase())
+                  .filter(Boolean),
+              ),
+            ]
+          : undefined,
+      z
+        .array(
+          z.enum(CRM_PROMOTABLE_TIERS, {
+            message: "Use hot, warm and/or cold (disqualified is never promoted)",
+          }),
+        )
+        .min(1)
+        .default(["hot", "warm"]),
+    ),
     WORKER_POLL_INTERVAL_MS: z.preprocess(
       blankToUndefined,
       z.coerce.number().int().min(1000).max(3_600_000).default(5000),

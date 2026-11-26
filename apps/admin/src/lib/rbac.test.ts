@@ -6,7 +6,7 @@ describe("rbac", () => {
     expect(toRole("superuser")).toBe("viewer");
     expect(toRole(null)).toBe("viewer");
   });
-  it("viewer can only read the dashboard", () => {
+  it("viewer can only read the dashboard and the CRM", () => {
     expect(can("viewer", "dashboard:read")).toBe(true);
     expect(can("viewer", "settings:write")).toBe(false);
     expect(can("viewer", "audit:read")).toBe(false);
@@ -40,6 +40,21 @@ describe("rbac", () => {
     for (const p of ["qualification:run", "facts:verify"] as const) {
       expect(can("viewer", p)).toBe(false);
       expect(can("operator", p)).toBe(true);
+      expect(can("admin", p)).toBe(true);
+      expect(can("owner", p)).toBe(true);
+      expect(can("superuser", p)).toBe(false);
+    }
+  });
+  it("CRM: viewers read, operators write, admins reopen, clear DNC, import and export", () => {
+    expect(can("viewer", "crm:read")).toBe(true);
+    expect(can("viewer", "crm:write")).toBe(false);
+    for (const r of ["operator", "admin", "owner"]) {
+      expect(can(r, "crm:read")).toBe(true);
+      expect(can(r, "crm:write")).toBe(true);
+    }
+    for (const p of ["crm:reopen", "crm:dnc_clear", "crm:import", "crm:export"] as const) {
+      expect(can("viewer", p)).toBe(false);
+      expect(can("operator", p)).toBe(false);
       expect(can("admin", p)).toBe(true);
       expect(can("owner", p)).toBe(true);
       expect(can("superuser", p)).toBe(false);

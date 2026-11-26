@@ -9,7 +9,7 @@ const securityHeaders = [
 
 const config: NextConfig = {
   poweredByHeader: false,
-  transpilePackages: ["@kalpix/core", "@kalpix/config", "@kalpix/providers"],
+  transpilePackages: ["@kalpix/core", "@kalpix/config", "@kalpix/providers", "@kalpix/worker"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

@@ -1,4 +1,4 @@
-// Kalpix schema (Phase 2 core + Phase 3 discovery + Phase 4 research). Auth tables follow Better Auth 1.7 (core + twoFactor + admin plugins).
+// Kalpix schema (Phase 2 core + Phase 3 discovery + Phase 4 research + Phase 5 qualification + Phase 6 CRM). Auth tables follow Better Auth 1.7 (core + twoFactor + admin plugins).
 generator client {
   provider = "prisma-client-js"
 }
@@ -30,6 +30,15 @@ model User {
   researchRuns      ResearchRun[]
   qualificationRuns QualificationRun[]
   verifiedFacts     ResearchFact[]
+  // Phase 6 CRM
+  leadsAssigned     Lead[]             @relation("LeadAssignee")
+  leadsCreated      Lead[]             @relation("LeadCreatedBy")
+  leadStageChanges  LeadStageHistory[]
+  leadActivities    LeadActivity[]
+  leadTasksAssigned LeadTask[]         @relation("LeadTaskAssignee")
+  leadTasksCreated  LeadTask[]         @relation("LeadTaskCreatedBy")
+  leadTasksDone     LeadTask[]         @relation("LeadTaskCompletedBy")
+  contactStatusSet  Business[]         @relation("BusinessContactStatusBy")
 
   @@map("user")
 }
@@ -268,58 +277,67 @@ enum BusinessStatus {
 
 /// A discovered business with provenance (docs/ARCHITECTURE.md "Data provenance").
 model Business {
-  id                 String                  @id @default(uuid())
-  name               String
-  normalizedName     String
-  category           String // Kalpix industry id, e.g. "restaurants"
-  subcategory        String? // matched provider tag, e.g. "amenity=cafe"
-  provider           String // "osm-overpass" | "mock-discovery" | ...
-  providerId         String // "node/123" for OSM
-  osmType            String?
-  osmId              String?
-  alternateIds       String[]                @default([]) // provider:id of records merged by fuzzy dedupe
+  id                   String                  @id @default(uuid())
+  name                 String
+  normalizedName       String
+  category             String // Kalpix industry id, e.g. "restaurants"
+  subcategory          String? // matched provider tag, e.g. "amenity=cafe"
+  provider             String // "osm-overpass" | "mock-discovery" | ...
+  providerId           String // "node/123" for OSM
+  osmType              String?
+  osmId                String?
+  alternateIds         String[]                @default([]) // provider:id of records merged by fuzzy dedupe
   // address
-  houseNumber        String?
-  street             String?
-  locality           String?
-  city               String?
-  district           String?
-  state              String?
-  postcode           String?
-  country            String?
-  addressFull        String?
-  lat                Float
-  lon                Float
+  houseNumber          String?
+  street               String?
+  locality             String?
+  city                 String?
+  district             String?
+  state                String?
+  postcode             String?
+  country              String?
+  addressFull          String?
+  lat                  Float
+  lon                  Float
   // contact
-  phone              String?
-  website            String?
-  email              String?
-  openingHours       String?
-  hasWebsite         Boolean                 @default(false)
+  phone                String?
+  website              String?
+  email                String?
+  openingHours         String?
+  hasWebsite           Boolean                 @default(false)
   // provenance
-  source             String // "openstreetmap" | "mock"
-  sourceType         String // open_data | licensed_api | mock
-  sourceUrl          String
-  collectedAt        DateTime
-  lastSeenAt         DateTime
-  confidence         Float // completeness heuristic 0..1, not a verification
-  verificationStatus String                  @default("unverified")
-  license            String?
-  usageRestrictions  String?
-  rawTags            Json?
-  firstRunId         String?
-  lastRunId          String?
-  status             BusinessStatus          @default(NEW)
-  lastResearchedAt   DateTime? // Phase 4: last website research of any outcome
+  source               String // "openstreetmap" | "mock"
+  sourceType           String // open_data | licensed_api | mock
+  sourceUrl            String
+  collectedAt          DateTime
+  lastSeenAt           DateTime
+  confidence           Float // completeness heuristic 0..1, not a verification
+  verificationStatus   String                  @default("unverified")
+  license              String?
+  usageRestrictions    String?
+  rawTags              Json?
+  firstRunId           String?
+  lastRunId            String?
+  status               BusinessStatus          @default(NEW)
+  lastResearchedAt     DateTime? // Phase 4: last website research of any outcome
   // Phase 5: latest rules-based qualification (for listing); history in business_qualification
-  latestScore        Int?
-  latestTier         String? // hot | warm | cold | disqualified
-  qualifiedAt        DateTime?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  researches         BusinessResearch[]
-  facts              ResearchFact[]
-  qualifications     BusinessQualification[]
+  latestScore          Int?
+  latestTier           String? // hot | warm | cold | disqualified
+  qualifiedAt          DateTime?
+  // Phase 6: consent / do-not-contact (DPDP Act). Anything but "ok" blocks future outreach.
+  contactStatus        ContactStatus           @default(ok)
+  contactStatusReason  String?
+  contactStatusById    String?
+  contactStatusBy      User?                   @relation("BusinessContactStatusBy", fields: [contactStatusById], references: [id], onDelete: SetNull)
+  contactStatusByLabel String? // email or "system"; survives user deletion
+  contactStatusAt      DateTime?
+  lawfulBasisNote      String? // why Kalpix may process this business's contact data
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  researches           BusinessResearch[]
+  facts                ResearchFact[]
+  qualifications       BusinessQualification[]
+  lead                 Lead?
 
   @@unique([provider, providerId])
   @@index([category])
@@ -432,9 +450,9 @@ model BusinessResearch {
 /// One value about a business with full provenance. Listing values (OSM / discovery record) are
 /// stored as facts too (sourceType osm|listing) so every value has the same provenance shape.
 model ResearchFact {
-  id                   String    @id @default(uuid())
+  id                   String        @id @default(uuid())
   businessId           String
-  business             Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business             Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   field                String // ResearchField: phone, email, social_facebook, opening_hours ...
   value                String // as found, <= 1000 chars
   normalizedValue      String // comparison key, <= 400 chars
@@ -444,7 +462,7 @@ model ResearchFact {
   provider             String // provider that produced it: http-extractor | osm-overpass | ...
   collectedAt          DateTime // latest time this value was seen at sourceUrl
   confidence           Float // extraction-method reliability 0..1, NOT a verification
-  verificationStatus   String    @default("unverified") // unverified | verified | conflicting | invalid
+  verificationStatus   String        @default("unverified") // unverified | verified | conflicting | invalid
   usageRestriction     String?
   firstRunId           String?
   lastRunId            String?
@@ -452,13 +470,14 @@ model ResearchFact {
   verifiedAt           DateTime? // last time the status was (re)assessed, automatically or by a person
   verificationMethod   String? // phone_format_agreement | email_syntax_mx | website_reachability | postcode_format_state | conflict_check | manual
   verificationEvidence Json?
-  verificationOverride Boolean   @default(false) // set by a person: the automatic pass leaves it alone
+  verificationOverride Boolean       @default(false) // set by a person: the automatic pass leaves it alone
   verifiedById         String?
-  verifiedBy           User?     @relation(fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedBy           User?         @relation(fields: [verifiedById], references: [id], onDelete: SetNull)
   verifiedByLabel      String? // email or "system"; survives user deletion
   overrideReason       String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  leadContacts         LeadContact[]
 
   @@unique([businessId, field, normalizedValue, sourceUrl])
   @@index([businessId, field])
@@ -568,4 +587,194 @@ model BusinessQualification {
   @@index([businessId, qualifiedAt])
   @@index([tier, score])
   @@map("business_qualification")
+}
+
+// ---------- Phase 6: CRM and lead management ----------
+
+enum LeadStage {
+  new
+  contacted
+  interested
+  demo_requested
+  proposal_sent
+  negotiating
+  won
+  lost
+  nurture
+}
+
+enum LeadPriority {
+  low
+  normal
+  high
+}
+
+enum LeadSource {
+  qualification
+  manual
+  import
+}
+
+enum LeadActivityType {
+  note
+  call_logged
+  meeting_logged
+  stage_change
+  assignment
+  task_done
+  system
+}
+
+enum LeadTaskStatus {
+  open
+  done
+  cancelled
+}
+
+enum ContactStatus {
+  ok
+  do_not_contact
+  opted_out
+}
+
+/// One sales lead per business. Stage rules live in packages/core/src/crm.ts; every write that
+/// changes the row bumps `version` (optimistic concurrency: a stale version is a 409).
+model Lead {
+  id                 String             @id @default(uuid())
+  businessId         String             @unique
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  stage              LeadStage          @default(new)
+  assigneeId         String?
+  assignee           User?              @relation("LeadAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  priority           LeadPriority       @default(normal)
+  valueEstimatePaise Int? // estimate only, in paise; never a price list
+  currency           String             @default("INR")
+  lostReason         String? // required while stage = lost (CHECK)
+  nextFollowUpAt     DateTime?
+  source             LeadSource
+  qualificationId    String? // business_qualification it was promoted from (plain id)
+  promotedTier       String? // tier at promotion: hot | warm | cold
+  createdById        String?
+  createdBy          User?              @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByLabel     String // email or "system"
+  lastActivityAt     DateTime           @default(now())
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  stageChangedAt     DateTime           @default(now())
+  stageHistory       LeadStageHistory[]
+  contacts           LeadContact[]
+  activities         LeadActivity[]
+  tasks              LeadTask[]
+  tags               LeadTagLink[]
+
+  @@index([stage, assigneeId])
+  @@index([assigneeId])
+  @@index([nextFollowUpAt])
+  @@index([lastActivityAt])
+  @@index([createdAt])
+  @@map("lead")
+}
+
+/// Append-only (trigger): rows leave only with their lead.
+model LeadStageHistory {
+  id        String     @id @default(uuid())
+  leadId    String
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromStage LeadStage? // null for the first entry
+  toStage   LeadStage
+  byId      String?
+  by        User?      @relation(fields: [byId], references: [id], onDelete: SetNull)
+  byLabel   String
+  at        DateTime   @default(now())
+  note      String?
+
+  @@index([leadId, at])
+  @@map("lead_stage_history")
+}
+
+/// A person or channel at the business. sourceFactId links the research fact a value came from.
+model LeadContact {
+  id           String        @id @default(uuid())
+  leadId       String
+  lead         Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  personName   String?
+  role         String?
+  phone        String?
+  email        String?
+  whatsapp     String?
+  isPrimary    Boolean       @default(false)
+  sourceFactId String?
+  sourceFact   ResearchFact? @relation(fields: [sourceFactId], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([leadId])
+  @@map("lead_contact")
+}
+
+/// Timeline. Append-only (trigger) except a note's body, editable by its author for 15 minutes.
+model LeadActivity {
+  id          String           @id @default(uuid())
+  leadId      String
+  lead        Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type        LeadActivityType
+  authorId    String?
+  author      User?            @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorLabel String
+  body        String
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  editedAt    DateTime?
+
+  @@index([leadId, createdAt])
+  @@map("lead_activity")
+}
+
+model LeadTask {
+  id               String         @id @default(uuid())
+  leadId           String
+  lead             Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  title            String
+  dueAt            DateTime?
+  assigneeId       String?
+  assignee         User?          @relation("LeadTaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  status           LeadTaskStatus @default(open)
+  createdById      String?
+  createdBy        User?          @relation("LeadTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByLabel   String
+  completedAt      DateTime?
+  completedById    String?
+  completedBy      User?          @relation("LeadTaskCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  completedByLabel String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  // Open tasks by due date: partial index lead_task_open_due_idx (raw SQL in the migration).
+  @@index([leadId, status])
+  @@index([assigneeId, status])
+  @@map("lead_task")
+}
+
+/// Tags are unique case-insensitively: key = lower(trim(name)) (CHECK + unique).
+model LeadTag {
+  id        String        @id @default(uuid())
+  name      String
+  key       String        @unique
+  createdAt DateTime      @default(now())
+  leads     LeadTagLink[]
+
+  @@map("lead_tag")
+}
+
+model LeadTagLink {
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       LeadTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([leadId, tagId])
+  @@index([tagId])
+  @@map("lead_tag_link")
 }

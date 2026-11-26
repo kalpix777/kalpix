@@ -32,6 +32,11 @@ jobs:
           # Qualification AI uses the MOCK model only: CI never calls Ollama or Gemini.
           sed -i 's#^QUALIFICATION_AI_PROVIDER=.*#QUALIFICATION_AI_PROVIDER=mock#' .env
           grep -q '^QUALIFICATION_AI_PROVIDER=mock' .env || echo 'QUALIFICATION_AI_PROVIDER=mock' >> .env
+          # CRM defaults pinned for the CRM e2e (promotion tiers, stale threshold). No outbound messaging exists.
+          sed -i 's#^CRM_STALE_DAYS=.*#CRM_STALE_DAYS=14#' .env
+          grep -q '^CRM_STALE_DAYS=14' .env || echo 'CRM_STALE_DAYS=14' >> .env
+          sed -i 's#^CRM_PROMOTE_TIERS=.*#CRM_PROMOTE_TIERS=hot,warm#' .env
+          grep -q '^CRM_PROMOTE_TIERS=hot,warm' .env || echo 'CRM_PROMOTE_TIERS=hot,warm' >> .env
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm verify
@@ -41,7 +46,7 @@ jobs:
       - name: Worker integration tests (real PostgreSQL, mock provider)
         run: pnpm -F @kalpix/worker test:integration
       - run: pnpm build
-      - name: End-to-end smoke, MFA, discovery, research and qualification tests
+      - name: End-to-end smoke, MFA, discovery, research, qualification and CRM tests
         run: |
           pnpm start &
           npx wait-on http://localhost:3000/login --timeout 60000

@@ -14,10 +14,11 @@
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
-    "e2e": "dotenv -e ../../.env -- tsx e2e/smoke.mjs && dotenv -e ../../.env -- tsx e2e/mfa.mjs && dotenv -e ../../.env -- tsx e2e/discovery.mjs && dotenv -e ../../.env -- tsx e2e/research.mjs && dotenv -e ../../.env -- tsx e2e/qualification.mjs",
+    "e2e": "dotenv -e ../../.env -- tsx e2e/smoke.mjs && dotenv -e ../../.env -- tsx e2e/mfa.mjs && dotenv -e ../../.env -- tsx e2e/discovery.mjs && dotenv -e ../../.env -- tsx e2e/research.mjs && dotenv -e ../../.env -- tsx e2e/qualification.mjs && dotenv -e ../../.env -- tsx e2e/crm.mjs",
     "e2e:discovery": "dotenv -e ../../.env -- tsx e2e/discovery.mjs",
     "e2e:research": "dotenv -e ../../.env -- tsx e2e/research.mjs",
     "e2e:qualification": "dotenv -e ../../.env -- tsx e2e/qualification.mjs",
+    "e2e:crm": "dotenv -e ../../.env -- tsx e2e/crm.mjs",
     "lint": "eslint ."
   },
   "prisma": {
@@ -27,6 +28,7 @@
     "@kalpix/config": "workspace:*",
     "@kalpix/core": "workspace:*",
     "@kalpix/providers": "workspace:*",
+    "@kalpix/worker": "workspace:*",
     "@prisma/client": "~6.19.0",
     "better-auth": "~1.7.0",
     "clsx": "^2.1.1",

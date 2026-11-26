@@ -60,7 +60,9 @@ export const NAV: NavItem[] = [
     group: "Acquire",
     phase: 6,
     icon: "Users",
-    description: "Contacts, activities, tasks and approval requests.",
+    description:
+      "Lead pipeline: stages, assignees, follow-ups, tasks, contacts, timeline and do-not-contact.",
+    permission: "crm:read",
   },
   {
     slug: "generator",
@@ -225,6 +227,6 @@ export const NAV: NavItem[] = [
 ];
 
 /** Highest phase whose modules are built. Modules above it show an honest "Not built yet". */
-export const BUILT_THROUGH_PHASE = 5;
+export const BUILT_THROUGH_PHASE = 6;
 
 export const isBuilt = (n: Pick<NavItem, "phase">) => n.phase <= BUILT_THROUGH_PHASE;

@@ -42,6 +42,7 @@ import {
   retryQualificationRun,
   startQualificationRun,
 } from "@/server/actions/qualification";
+import { createManualLeadAction, promoteLeadsAction } from "@/server/actions/crm";
 
 export const metadata = { title: "Lead Qualification" };
 export const dynamic = "force-dynamic";
@@ -97,6 +98,8 @@ export default async function LeadsPage({
   const ok = one(sp.ok);
   const error = one(sp.error);
   const canRun = can(session.user.role, "qualification:run");
+  const canCrm = can(session.user.role, "crm:write");
+  const canCrmRead = can(session.user.role, "crm:read");
   const filters = parseLeadsFilters(sp, isKalpixCategory);
   const page = parsePage(one(sp.page));
   const where = leadsWhere(filters);
@@ -130,6 +133,8 @@ export default async function LeadsPage({
           latestScore: true,
           latestTier: true,
           qualifiedAt: true,
+          contactStatus: true,
+          lead: { select: { id: true } },
           qualifications: {
             orderBy: { qualifiedAt: "desc" },
             take: 1,
@@ -536,6 +541,69 @@ export default async function LeadsPage({
         </Card>
       )}
 
+      {canCrm && (
+        <Card className="mb-6">
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Promote to CRM</CardTitle>
+              <CardDescription>
+                Creates a CRM lead for each qualified business in the chosen tiers that is not
+                already a lead. Disqualified and do-not-contact businesses are never promoted;
+                running it twice adds nothing new.
+              </CardDescription>
+            </div>
+            <Link href="/crm" className="text-sm font-semibold text-brand-700">
+              Open CRM →
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <form
+              action={promoteLeadsAction}
+              className="flex flex-wrap items-end gap-4"
+              aria-label="Promote to CRM"
+            >
+              <input type="hidden" name="scope" value="all" />
+              <input type="hidden" name="returnTo" value="/leads" />
+              <fieldset className="flex items-center gap-4">
+                <legend className="mb-1.5 text-[13px] font-medium text-slate-700">Tiers</legend>
+                {(["hot", "warm", "cold"] as const).map((t) => (
+                  <label key={t} className="flex items-center gap-1.5 text-sm text-slate-800">
+                    <input
+                      type="checkbox"
+                      name="tiers"
+                      value={t}
+                      defaultChecked={t !== "cold"}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    {tierLabel(t)}
+                  </label>
+                ))}
+              </fieldset>
+              <div className="flex w-52 flex-col gap-1.5">
+                <Label htmlFor="assign">Assign</Label>
+                <Select id="assign" name="assign" defaultValue="none">
+                  <option value="none">Leave unassigned</option>
+                  <option value="round_robin">Round-robin to operators</option>
+                </Select>
+              </div>
+              <div className="flex w-32 flex-col gap-1.5">
+                <Label htmlFor="promote-limit">Max new leads</Label>
+                <Input
+                  id="promote-limit"
+                  name="limit"
+                  type="number"
+                  min={1}
+                  max={1000}
+                  step={1}
+                  defaultValue={200}
+                />
+              </div>
+              <Button type="submit">Promote to CRM</Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-900">Ranked leads</h2>
@@ -620,6 +688,7 @@ export default async function LeadsPage({
                 <TH className="px-3">Category</TH>
                 <TH className="px-3">Contactability</TH>
                 <TH className="px-3">Qualified (IST)</TH>
+                {canCrmRead && <TH className="px-3 text-right">CRM</TH>}
               </tr>
             </THead>
             <TBody>
@@ -689,6 +758,34 @@ export default async function LeadsPage({
                     <TD className="whitespace-nowrap px-3 text-xs text-slate-600">
                       {l.qualifiedAt ? formatDateTime(l.qualifiedAt) : "—"}
                     </TD>
+                    {canCrmRead && (
+                      <TD className="whitespace-nowrap px-3 text-right">
+                        {l.lead ? (
+                          <Link
+                            href={`/crm/leads/${l.lead.id}`}
+                            className="text-xs font-semibold text-brand-700"
+                          >
+                            In CRM →
+                          </Link>
+                        ) : canCrm &&
+                          l.latestTier !== "disqualified" &&
+                          l.contactStatus === "ok" ? (
+                          <form action={createManualLeadAction}>
+                            <input type="hidden" name="businessId" value={l.id} />
+                            <input type="hidden" name="returnTo" value="/leads" />
+                            <Button
+                              type="submit"
+                              variant="secondary"
+                              className="h-7 px-2.5 text-xs"
+                            >
+                              Add to CRM
+                            </Button>
+                          </form>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </TD>
+                    )}
                   </tr>
                 );
               })}
